@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>inkself — твой почерк как шрифт</title>
+<title>inkfont — твой почерк как шрифт</title>
 <meta name="description" content="Напиши три строчки от руки, сфотографируй — получи готовый шрифт .otf за минуту.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -38,7 +38,9 @@
 
   /* навигация: только название и кнопка поверх фото, без подложки; уезжает вместе с первым экраном */
   nav{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:26px clamp(20px,4vw,44px);color:#fff}
-  .logo{font-family:var(--display);font-style:italic;font-size:30px;line-height:1;text-decoration:none;text-shadow:0 1px 12px rgba(14,18,10,.25)}
+  /* логотип — надпись от руки, белая, с живыми краями чернил */
+  .logo{display:block;line-height:0}
+  .logo img{height:clamp(64px,7vw,90px);width:auto;filter:drop-shadow(0 1px 10px rgba(14,18,10,.3))}
   .nav-r{display:flex;align-items:center;gap:18px}
   .lang{border:0;background:none;color:#fff;font:inherit;font-size:15px;letter-spacing:.06em;cursor:pointer;opacity:.85;padding:6px 2px}
   .lang:hover{opacity:1}
@@ -53,9 +55,7 @@
   .hero>*{position:relative}
   .hero>nav{position:absolute}
   h1{font-family:var(--display);font-weight:400;font-style:italic;font-size:clamp(58px,11vw,136px);line-height:.95;letter-spacing:-.01em;margin:0 0 22px}
-  /* надпись от руки вместо набранного заголовка: белая, с живыми краями чернил */
-  h1.wordmark{margin:0 0 26px;line-height:0}
-  h1.wordmark img{width:clamp(240px,46vw,560px);height:auto;filter:drop-shadow(0 2px 18px rgba(14,18,10,.28))}
+  h1 .hand{font-family:var(--userfont,var(--display))}
   .lead{font-size:clamp(17px,2vw,20px);max-width:520px;margin:0 auto 34px;opacity:.92}
   .ask{width:100%;max-width:580px;background:rgba(255,255,255,.9);color:var(--ink);border-radius:var(--radius);padding:20px 20px 16px 24px;text-align:left;
        backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 20px 60px rgba(14,18,10,.25)}
@@ -149,7 +149,7 @@
 
   .hidden{display:none!important}
   @media (max-width:600px){
-    nav{padding:20px} .logo{font-size:26px} .nav-r{gap:12px} nav a.go{padding:10px 16px}
+    nav{padding:20px} .nav-r{gap:12px} nav a.go{padding:10px 16px}
     section.step{padding-top:88px} section.step:last-of-type{padding-bottom:88px}
     #previewText{font-size:40px} .card,.preview,.buy{padding:20px} .sheet{padding:18px 20px}
     .modal{align-items:flex-end;padding:0} .ed-card{border-radius:22px 22px 0 0;max-height:92vh;padding:20px 16px}
@@ -161,13 +161,13 @@
 <body>
 <header class="hero" id="top">
   <nav>
-    <a class="logo" href="#top">inkself</a>
+    <a class="logo" href="#top"><img src="assets/inkfont.png" width="944" height="598" alt="inkfont"></a>
     <div class="nav-r">
       <button class="lang" id="langBtn"></button>
       <a class="go" href="#write" data-i18n="navGo">Создать шрифт</a>
     </div>
   </nav>
-  <h1 class="wordmark"><img src="assets/inkfont.png" width="944" height="598" alt="inkfont"></h1>
+  <h1>Your handwriting,<br><span class="hand">your font.</span></h1>
   <p class="lead" data-i18n="lead"></p>
   <div class="ask">
     <p data-i18n="askP"></p>

@@ -9,7 +9,7 @@ const plural = (n, one, few, many) => {
 
 const I18N = {
   ru: {
-    title: 'inkself — твой почерк как шрифт',
+    title: 'inkfont — твой почерк как шрифт',
     desc: 'Напиши три строчки от руки, сфотографируй — получи готовый шрифт .otf за минуту.',
     langBtn: 'EN', langAria: 'Switch to English',
     navGo: 'Создать шрифт',
@@ -56,10 +56,10 @@ const I18N = {
     stFound: v => `Нашли ${v.found} из ${v.total} знаков, ${v.kinds} разных символов` +
       (v.cut ? `, ${v.cut} вырезали из слитных слов (оранжевые).` : '.') +
       (v.low ? ' Часть букв не видна — проверь их ниже или пересними фото.' : ''),
-    footer: 'inkself · всё считается локально в браузере · шрифты сайта: Britney и Quicksand с Fontshare',
+    footer: 'inkfont · всё считается локально в браузере · шрифты сайта: Britney и Quicksand с Fontshare',
   },
   en: {
-    title: 'inkself — your handwriting as a font',
+    title: 'inkfont — your handwriting as a font',
     desc: 'Write three lines by hand, snap a photo, and get a real .otf font in a minute.',
     langBtn: 'RU', langAria: 'Переключить на русский',
     navGo: 'Make a font',
@@ -106,12 +106,12 @@ const I18N = {
     stFound: v => `Found ${v.found} of ${v.total} characters, ${v.kinds} different ones` +
       (v.cut ? `; ${v.cut} were cut out of joined-up words (orange).` : '.') +
       (v.low ? ' Some letters are missing. Check them below or retake the photo.' : ''),
-    footer: 'inkself · everything runs locally in your browser · site fonts: Britney and Quicksand from Fontshare',
+    footer: 'inkfont · everything runs locally in your browser · site fonts: Britney and Quicksand from Fontshare',
   },
 };
 
 let LANG = (() => {
-  try { const s = localStorage.getItem('inkself-lang'); if (s === 'ru' || s === 'en') return s; } catch (e) {}
+  try { const s = localStorage.getItem('inkfont-lang') || localStorage.getItem('inkself-lang'); if (s === 'ru' || s === 'en') return s; } catch (e) {}
   return (navigator.language || '').toLowerCase().startsWith('ru') ? 'ru' : 'en';
 })();
 
@@ -136,7 +136,7 @@ function applyLang() {
 
 function setLang(l) {
   LANG = l;
-  try { localStorage.setItem('inkself-lang', l); } catch (e) {}
+  try { localStorage.setItem('inkfont-lang', l); } catch (e) {}
   applyLang();
 }
 

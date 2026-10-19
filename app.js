@@ -1,4 +1,4 @@
-/* inkself — почерк → шрифт, целиком в браузере.
+/* inkfont — почерк → шрифт, целиком в браузере.
    Идея: пользователь пишет ИЗВЕСТНЫЙ текст. Нам не нужно распознавать буквы (OCR):
    мы находим пятна чернил, раскладываем их по строкам слева направо и сопоставляем
    с ожидаемыми символами через динамическое программирование. */
@@ -203,7 +203,7 @@ function rebuild() {
     const bb = g.getBoundingBox(); yMax = Math.max(yMax, bb.y2 + 20); yMin = Math.min(yMin, bb.y1 - 20);
   }
   state.font = new opentype.Font({ familyName: name, styleName: 'Regular', unitsPerEm: UPM, ascender: Math.round(yMax), descender: Math.round(yMin), glyphs });
-  const fam = 'inkself-' + Date.now();
+  const fam = 'inkfont-' + Date.now();
   const face = new FontFace(fam, state.font.toArrayBuffer());
   face.load().then(f => {
     document.fonts.add(f);
@@ -247,7 +247,7 @@ $('#buyBtn').onclick = () => {
 };
 
 // для тестов и записи роликов
-window.inkself = { state, runDemo, setScript, process };
+window.inkfont = { state, runDemo, setScript, process };
 
 // смена языка: статус, плитки и текст-заготовка «Свой текст»
 langHooks.push(() => {
