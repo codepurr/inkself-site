@@ -53,7 +53,9 @@
   .hero>*{position:relative}
   .hero>nav{position:absolute}
   h1{font-family:var(--display);font-weight:400;font-style:italic;font-size:clamp(58px,11vw,136px);line-height:.95;letter-spacing:-.01em;margin:0 0 22px}
-  h1 .hand{font-family:var(--userfont,var(--display))}
+  /* надпись от руки вместо набранного заголовка: белая, с живыми краями чернил */
+  h1.wordmark{margin:0 0 26px;line-height:0}
+  h1.wordmark img{width:clamp(240px,46vw,560px);height:auto;filter:drop-shadow(0 2px 18px rgba(14,18,10,.28))}
   .lead{font-size:clamp(17px,2vw,20px);max-width:520px;margin:0 auto 34px;opacity:.92}
   .ask{width:100%;max-width:580px;background:rgba(255,255,255,.9);color:var(--ink);border-radius:var(--radius);padding:20px 20px 16px 24px;text-align:left;
        backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 20px 60px rgba(14,18,10,.25)}
@@ -165,7 +167,7 @@
       <a class="go" href="#write" data-i18n="navGo">Создать шрифт</a>
     </div>
   </nav>
-  <h1>Your handwriting,<br><span class="hand">your font.</span></h1>
+  <h1 class="wordmark"><img src="assets/inkfont.png" width="944" height="598" alt="inkfont"></h1>
   <p class="lead" data-i18n="lead"></p>
   <div class="ask">
     <p data-i18n="askP"></p>
