@@ -1,9 +1,8 @@
 # Шрифты сайта
 
-| Файл | Шрифт | Авторы | Лицензия | Источник |
+| Файл | Шрифт | Автор | Лицензия | Источник |
 |---|---|---|---|---|
-| `Britney-Regular.woff2` | Britney Regular | Diana Ovezea, Sabina Chipară | ITF Free Font License (бесплатно, в том числе для коммерции и веба) | https://www.fontshare.com/fonts/britney |
-| `Quicksand-Medium.woff2` | Quicksand Medium | Andrew Paglinawan | SIL Open Font License 1.1 | https://www.fontshare.com/fonts/quicksand |
+| `GeneralSans-Regular.woff2` | General Sans Regular | Frode Helland | ITF Free Font License (бесплатно, в том числе для коммерции и веба) | https://www.fontshare.com/fonts/general-sans |
+| `GeneralSans-Semibold.woff2` | General Sans Semibold | Frode Helland | ITF Free Font License | https://www.fontshare.com/fonts/general-sans |
 
-В обоих нет кириллицы. Русский текст набирается запасными шрифтами из Google Fonts:
-Playfair Display Italic (вместо Britney) и Nunito (вместо Quicksand).
+В General Sans нет кириллицы. Русский текст набирается Manrope из Google Fonts (SIL Open Font License).

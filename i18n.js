@@ -56,7 +56,7 @@ const I18N = {
     stFound: v => `Нашли ${v.found} из ${v.total} знаков, ${v.kinds} разных символов` +
       (v.cut ? `, ${v.cut} вырезали из слитных слов (оранжевые).` : '.') +
       (v.low ? ' Часть букв не видна — проверь их ниже или пересними фото.' : ''),
-    footer: 'inkfont · всё считается локально в браузере · шрифты сайта: Britney и Quicksand с Fontshare',
+    footer: 'inkfont · всё считается локально в браузере · шрифт сайта: General Sans с Fontshare',
   },
   en: {
     title: 'inkfont — your handwriting as a font',
@@ -106,7 +106,7 @@ const I18N = {
     stFound: v => `Found ${v.found} of ${v.total} characters, ${v.kinds} different ones` +
       (v.cut ? `; ${v.cut} were cut out of joined-up words (orange).` : '.') +
       (v.low ? ' Some letters are missing. Check them below or retake the photo.' : ''),
-    footer: 'inkfont · everything runs locally in your browser · site fonts: Britney and Quicksand from Fontshare',
+    footer: 'inkfont · everything runs locally in your browser · site font: General Sans from Fontshare',
   },
 };
 
