@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inkself — твой почерк как шрифт</title>
+<meta name="description" content="Напиши пару предложений от руки, сфотографируй — получи готовый шрифт .otf за минуту.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Neucha&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0b1f4b;        /* тёмно-синие чернила */
+    --ink-2:#1d3a8a;
+    --ink-soft:#52608a;
+    --line:#e3e7f0;
+    --paper:#ffffff;
+    --mist:#f5f7fb;
+    --ok:#1f7a4d;
+    --warn:#b4541a;
+    --radius:22px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--paper);color:var(--ink)}
+  body{font:17px/1.47 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:var(--ink-2)}
+  .wrap{max-width:980px;margin:0 auto;padding:0 22px}
+  nav{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.8);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--line)}
+  nav .wrap{display:flex;align-items:center;justify-content:space-between;height:52px}
+  .logo{font-weight:600;letter-spacing:-.01em;font-size:19px}
+  .logo i{font-style:normal;color:var(--ink-2)}
+  nav a.small{font-size:14px;text-decoration:none}
+
+  .hero{text-align:center;padding:96px 0 56px}
+  .eyebrow{font-size:15px;font-weight:600;color:var(--ink-2);letter-spacing:.02em}
+  h1{font-size:clamp(44px,8vw,80px);line-height:1.04;letter-spacing:-.035em;font-weight:700;margin:10px 0 18px}
+  h1 .hand{font-family:var(--userfont,'Neucha'),cursive;font-weight:400;color:var(--ink-2);letter-spacing:0}
+  .lead{font-size:clamp(19px,2.4vw,24px);color:var(--ink-soft);max-width:640px;margin:0 auto 30px;letter-spacing:-.01em}
+  .btn{appearance:none;border:0;border-radius:980px;background:var(--ink);color:#fff;font:inherit;font-size:17px;padding:13px 26px;cursor:pointer;transition:transform .15s,background .2s}
+  .btn:hover{background:var(--ink-2)}
+  .btn:active{transform:scale(.98)}
+  .btn.ghost{background:transparent;color:var(--ink-2);padding:13px 18px}
+  .btn.ghost:hover{text-decoration:underline;background:transparent}
+  .btn[disabled]{opacity:.4;cursor:default}
+
+  section.step{padding:72px 0;border-top:1px solid var(--line)}
+  .num{display:inline-flex;width:30px;height:30px;border-radius:50%;border:1.5px solid var(--ink);align-items:center;justify-content:center;font-size:14px;font-weight:600;margin-bottom:14px}
+  h2{font-size:clamp(30px,4.6vw,48px);letter-spacing:-.03em;line-height:1.08;margin:0 0 12px;font-weight:700}
+  .sub{color:var(--ink-soft);font-size:19px;max-width:640px;margin:0 0 28px}
+
+  .seg{display:inline-flex;background:var(--mist);border-radius:980px;padding:4px;margin-bottom:22px;flex-wrap:wrap}
+  .seg button{border:0;background:transparent;font:inherit;font-size:15px;padding:8px 16px;border-radius:980px;color:var(--ink);cursor:pointer}
+  .seg button.on{background:#fff;box-shadow:0 1px 4px rgba(11,31,75,.12)}
+
+  .card{background:var(--mist);border-radius:var(--radius);padding:28px}
+  .sheet{background:#fff;border-radius:16px;padding:26px 28px;box-shadow:0 1px 2px rgba(11,31,75,.06),0 8px 30px rgba(11,31,75,.06);
+         font-family:'Neucha',cursive;font-size:clamp(20px,2.8vw,28px);line-height:1.7;color:var(--ink);
+         background-image:repeating-linear-gradient(transparent 0 calc(1.7em - 1px), #e6ebf5 calc(1.7em - 1px) 1.7em)}
+  .sheet textarea{all:unset;display:block;width:100%;white-space:pre-wrap;min-height:5em}
+  .tips{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:22px}
+  .tip{font-size:15px;color:var(--ink-soft)}
+  .tip b{display:block;color:var(--ink);font-size:15px;margin-bottom:2px}
+
+  .drop{border:1.5px dashed #b9c3da;border-radius:var(--radius);padding:44px 20px;text-align:center;background:#fff;cursor:pointer;transition:border-color .2s,background .2s}
+  .drop.over{border-color:var(--ink-2);background:#f2f5fd}
+  .drop p{margin:6px 0 0;color:var(--ink-soft);font-size:15px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;margin-top:16px}
+
+  #scanWrap{margin-top:26px;display:none}
+  #scan{width:100%;height:auto;border-radius:14px;background:#fff;box-shadow:0 1px 2px rgba(11,31,75,.08)}
+  .status{margin-top:14px;font-size:15px;color:var(--ink-soft)}
+  .status.ok{color:var(--ok)} .status.warn{color:var(--warn)}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px}
+  .tile{position:relative;aspect-ratio:1;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--line);transition:transform .12s,border-color .2s}
+  .tile:hover{transform:translateY(-1px);border-color:#b9c3da}
+  .tile .g{font-size:34px;line-height:1}
+  .tile .k{position:absolute;left:6px;top:4px;font-size:10px;color:#8c97b3}
+  .tile .n{position:absolute;right:6px;bottom:4px;font-size:10px;color:#8c97b3}
+  .tile.auto{border-style:dashed}
+  .tile.miss{background:#fbf3ee;border-color:#f0d6c6}
+  .legend{font-size:13px;color:var(--ink-soft);margin:12px 0 0}
+
+  .preview{background:#fff;border-radius:var(--radius);padding:26px 28px;box-shadow:0 1px 2px rgba(11,31,75,.06),0 8px 30px rgba(11,31,75,.06)}
+  #previewText{all:unset;display:block;width:100%;min-height:3.2em;font-size:56px;line-height:1.15;color:var(--ink);white-space:pre-wrap;word-break:break-word}
+  .controls{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-top:18px;font-size:15px;color:var(--ink-soft)}
+  .controls input[type=text]{font:inherit;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 12px;min-width:200px}
+  .buy{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:22px;padding:22px 26px;border-radius:var(--radius);background:var(--ink);color:#fff}
+  .buy .price{font-size:30px;font-weight:700;letter-spacing:-.02em}
+  .buy small{display:block;color:#b8c4e6;font-size:14px}
+  .buy .btn{background:#fff;color:var(--ink)}
+  .buy .btn:hover{background:#eef2fb}
+  footer{padding:40px 0 60px;color:#8c97b3;font-size:13px;text-align:center;border-top:1px solid var(--line)}
+  /* окно правки буквы */
+  .modal{position:fixed;inset:0;z-index:50;background:rgba(11,31,75,.32);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:16px}
+  .ed-card{background:#fff;border-radius:22px;padding:22px 24px;width:100%;max-width:688px;max-height:calc(100vh - 32px);overflow:auto;box-shadow:0 20px 60px rgba(11,31,75,.25)}
+  .ed-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}
+  .ed-title{font-size:24px;font-weight:700;letter-spacing:-.02em}
+  .ed-title span{font-family:var(--userfont,'Neucha'),cursive;font-weight:400;color:var(--ink-2);margin-left:4px}
+  .ed-sub{font-size:14px;color:var(--ink-soft);margin-top:2px}
+  .ed-x{border:0;background:var(--mist);width:32px;height:32px;border-radius:50%;font-size:20px;line-height:1;color:var(--ink);cursor:pointer;flex:none}
+  .ed-stage{background:var(--mist);border-radius:14px;padding:10px;display:flex;justify-content:center}
+  #edCanvas{display:block;cursor:ew-resize;touch-action:none;border-radius:8px;max-width:100%}
+  .ed-hint{font-size:13px;color:var(--ink-soft);margin:10px 0 0}
+  .ed-row{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:14px;flex-wrap:wrap}
+  .ed-variants{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink-soft)}
+  .ed-variants button{border:1px solid var(--line);background:#fff;width:34px;height:34px;border-radius:50%;font-size:18px;color:var(--ink);cursor:pointer}
+  .ed-variants button[disabled]{opacity:.35;cursor:default}
+  #edGlyph{border:1px solid var(--line);border-radius:12px}
+  .ed-actions{display:flex;justify-content:flex-end;gap:6px;flex-wrap:wrap;margin-top:16px}
+  .ed-actions .btn{font-size:15px;padding:10px 20px}
+  .ed-actions .btn.ghost{padding:10px 12px}
+  @media (max-width:600px){ .modal{align-items:flex-end;padding:0} .ed-card{border-radius:22px 22px 0 0;max-height:92vh;padding:18px 16px} }
+  .hidden{display:none!important}
+  @media (max-width:600px){ .hero{padding:64px 0 36px} section.step{padding:52px 0} #previewText{font-size:40px} .card{padding:18px} .sheet{padding:18px} }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/opentype.js/1.3.4/opentype.min.js"></script>
+</head>
+<body>
+<nav><div class="wrap">
+  <div class="logo">ink<i>self</i></div>
+  <a class="small" href="#write">Создать шрифт</a>
+</div></nav>
+
+<header class="hero wrap">
+  <div class="eyebrow">Без шаблонов. Без таблиц. Без Illustrator.</div>
+  <h1>Твой почерк.<br><span class="hand">Твой шрифт.</span></h1>
+  <p class="lead">Напиши три строчки от руки, сфотографируй — и через минуту получи настоящий шрифт .otf для Canva, Figma, Procreate и Word.</p>
+  <a href="#write"><button class="btn">Начать — это бесплатно</button></a>
+  <button class="btn ghost" id="demoTop">Посмотреть демо →</button>
+</header>
+
+<section class="step" id="write"><div class="wrap">
+  <div class="num">1</div>
+  <h2>Перепиши эти строки на бумаге.</h2>
+  <p class="sub">Обычной ручкой, печатными буквами. Последняя строка — заглавными: так мы получим и большие, и маленькие буквы.</p>
+  <div class="seg" id="scriptSeg">
+    <button data-s="latin" class="on">Latin</button>
+    <button data-s="cyrillic">Кириллица</button>
+    <button data-s="both">Обе</button>
+    <button data-s="own">Свой текст</button>
+  </div>
+  <div class="sheet"><textarea id="expected" spellcheck="false" readonly></textarea></div>
+  <div class="tips">
+    <div class="tip"><b>Буквы не касаются</b>Оставляй между ними маленький зазор — без слитного письма.</div>
+    <div class="tip"><b>Тёмная ручка</b>Гелевая или линер. Карандаш распознаётся хуже.</div>
+    <div class="tip"><b>Ровный свет</b>Фото сверху, без тени от телефона. Лист целиком.</div>
+    <div class="tip"><b>Перенос строк — можно</b>Пиши в своём размере, мы сами найдём строки.</div>
+  </div>
+</div></section>
+
+<section class="step" id="upload"><div class="wrap">
+  <div class="num">2</div>
+  <h2>Загрузи фото.</h2>
+  <p class="sub">Обработка идёт прямо в браузере — твой почерк никуда не уходит.</p>
+  <label class="drop" id="drop">
+    <input type="file" id="file" accept="image/*" hidden>
+    <div style="font-size:19px;font-weight:600">Перетащи фото сюда</div>
+    <p>или нажми, чтобы выбрать · JPG, PNG, HEIC-скриншот</p>
+  </label>
+  <div class="row"><button class="btn ghost" id="demoBtn">Нет листа под рукой? Сгенерировать демо-почерк</button></div>
+  <div id="scanWrap">
+    <canvas id="scan"></canvas>
+    <div class="status" id="status"></div>
+  </div>
+</div></section>
+
+<section class="step hidden" id="review"><div class="wrap">
+  <div class="num">3</div>
+  <h2>Проверь буквы.</h2>
+  <p class="sub">Нажми на букву: увидишь, где мы её нашли на фото, и сможешь подвинуть границы или выбрать другой вариант.</p>
+  <div class="card"><div class="grid" id="grid"></div>
+    <p class="legend">Пунктир — буква достроена автоматически (например, заглавная из строчной). Оранжевый — не нашли, будет системный шрифт.</p>
+  </div>
+</div></section>
+
+<section class="step hidden" id="result"><div class="wrap">
+  <div class="num">4</div>
+  <h2>Готово. Попробуй.</h2>
+  <p class="sub">Печатай ниже — это уже твой шрифт.</p>
+  <div class="preview">
+    <div id="previewText" contenteditable="true" spellcheck="false">Hello! Это мой почерк.</div>
+  </div>
+  <div class="controls">
+    <label>Название <input type="text" id="fontName" value="My Handwriting"></label>
+    <label>Размер <input type="range" id="size" min="20" max="120" value="56"></label>
+    <label>Межбуквенный <input type="range" id="track" min="-40" max="120" value="0"></label>
+  </div>
+  <div class="buy">
+    <div><div class="price">$7</div><small>Один раз за шрифт · .otf + .woff2-ready · личное и коммерческое использование</small></div>
+    <button class="btn" id="buyBtn">Скачать шрифт</button>
+  </div>
+</div></section>
+
+<div class="modal hidden" id="editor" role="dialog" aria-modal="true" aria-labelledby="edTitle">
+  <div class="ed-card">
+    <div class="ed-head">
+      <div><div class="ed-title" id="edTitle">Буква <span id="edChar"></span></div><div class="ed-sub" id="edSub"></div></div>
+      <button class="ed-x" id="edClose" aria-label="Закрыть">×</button>
+    </div>
+    <div class="ed-stage"><canvas id="edCanvas"></canvas></div>
+    <p class="ed-hint">Тяни синие ручки, чтобы сдвинуть границы. Тёмным — то, что попадёт в шрифт, серым — соседние буквы.</p>
+    <div class="ed-row">
+      <div class="ed-variants"><button id="edPrev" aria-label="Предыдущий вариант">‹</button><span id="edVar"></span><button id="edNext" aria-label="Следующий вариант">›</button></div>
+      <canvas id="edGlyph" aria-label="Превью буквы"></canvas>
+    </div>
+    <div class="ed-actions">
+      <button class="btn ghost" id="edDrop">Убрать этот вариант</button>
+      <button class="btn ghost" id="edReset">Сбросить</button>
+      <button class="btn" id="edApply">Применить</button>
+    </div>
+  </div>
+</div>
+
+<footer>inkself · MVP · всё считается локально в браузере</footer>
+
+<script src="pipeline.js"></script>
+<script src="app.js"></script>
+<script src="editor.js"></script>
+</body>
+</html>

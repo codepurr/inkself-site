@@ -1,0 +1,241 @@
+/* inkself — почерк → шрифт, целиком в браузере.
+   Идея: пользователь пишет ИЗВЕСТНЫЙ текст. Нам не нужно распознавать буквы (OCR):
+   мы находим пятна чернил, раскладываем их по строкам слева направо и сопоставляем
+   с ожидаемыми символами через динамическое программирование. */
+
+const CONFIG = {
+  // Ссылка на оплату (Stripe Payment Link / Lemon Squeezy). Пусто = тестовый режим, скачивание сразу.
+  paymentLink: '',
+};
+
+const TEMPLATES = {
+  latin: [
+    'the quick brown fox jumps over the lazy dog.',
+    'well-done, right? yes: wow!',
+    'THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG',
+  ],
+  cyrillic: [
+    'съешь же ещё этих мягких французских булок, да выпей чаю.',
+    'супер-шрифт? да: вау!',
+    'СЪЕШЬ ЖЕ ЕЩЁ ЭТИХ МЯГКИХ ФРАНЦУЗСКИХ БУЛОК, ДА ВЫПЕЙ ЧАЮ',
+  ],
+};
+TEMPLATES.both = [...TEMPLATES.latin, ...TEMPLATES.cyrillic];
+
+// Метрики шрифта (единицы при unitsPerEm = 1000)
+const UPM = 1000, XH = 500, CH = 720;
+
+const $ = s => document.querySelector(s);
+const state = { script: 'latin', image: null, instances: {}, choice: {}, charset: [], font: null, previewFamily: null };
+
+/* ---------- Шаг 1: текст-шаблон ---------- */
+const expectedEl = $('#expected');
+function setScript(s) {
+  state.script = s;
+  document.querySelectorAll('#scriptSeg button').forEach(b => b.classList.toggle('on', b.dataset.s === s));
+  if (s === 'own') {
+    expectedEl.readOnly = false;
+    if (!expectedEl.dataset.own) expectedEl.value = 'Напиши здесь то, что ты написал(а) на листе,\nстрока в строку.\nИ ЕЩЁ СТРОКУ ЗАГЛАВНЫМИ!';
+    expectedEl.focus();
+  } else {
+    expectedEl.readOnly = true;
+    expectedEl.value = TEMPLATES[s].join('\n');
+  }
+  autosize();
+}
+function autosize() { expectedEl.style.height = 'auto'; expectedEl.style.height = expectedEl.scrollHeight + 'px'; }
+expectedEl.addEventListener('input', () => { expectedEl.dataset.own = 1; autosize(); });
+document.querySelectorAll('#scriptSeg button').forEach(b => b.onclick = () => setScript(b.dataset.s));
+setScript('latin');
+
+/* ---------- Шаг 2: загрузка ---------- */
+const drop = $('#drop'), fileIn = $('#file');
+fileIn.onchange = () => fileIn.files[0] && loadFile(fileIn.files[0]);
+['dragenter', 'dragover'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', ev => ev.dataTransfer.files[0] && loadFile(ev.dataTransfer.files[0]));
+$('#demoBtn').onclick = runDemo;
+$('#demoTop').onclick = () => { document.querySelector('#upload').scrollIntoView({ behavior: 'smooth' }); runDemo(); };
+
+function loadFile(f) {
+  const img = new Image();
+  img.onload = () => process(img);
+  img.onerror = () => setStatus('Не получилось открыть файл. Попробуй JPG или PNG.', 'warn');
+  img.src = URL.createObjectURL(f);
+}
+
+function setStatus(t, cls = '') { const s = $('#status'); s.textContent = t; s.className = 'status ' + cls; $('#scanWrap').style.display = 'block'; }
+
+/* Демо: рисуем «почерк» рукописным шрифтом с дрожанием, как будто фото листа */
+async function runDemo() {
+  setStatus('Пишем демо-лист…');
+  await document.fonts.load('64px Neucha');
+  const lines = expectedText().split('\n').filter(l => l.trim());
+  const W = 1800, size = 66, lh = size * 1.9;
+  // перенос длинных строк
+  const c = document.createElement('canvas'), ctx = c.getContext('2d');
+  ctx.font = `${size}px Neucha`;
+  const rows = [];
+  for (const line of lines) {
+    let cur = '';
+    for (const word of line.split(' ')) {
+      const t = cur ? cur + ' ' + word : word;
+      if (measure(ctx, t) > W - 240 && cur) { rows.push(cur); cur = word; } else cur = t;
+    }
+    rows.push(cur);
+  }
+  c.width = W; c.height = Math.round(180 + rows.length * lh + 80);
+  const g = ctx.createLinearGradient(0, 0, W, c.height);
+  g.addColorStop(0, '#fbfaf6'); g.addColorStop(1, '#e9e6de');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, c.height);
+  ctx.font = `${size}px Neucha`; ctx.fillStyle = '#1b2763'; ctx.textBaseline = 'alphabetic';
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  rows.forEach((row, i) => {
+    let x = 120 + rnd() * 20; const y = 160 + i * lh;
+    for (const ch of row) {
+      const w = ctx.measureText(ch).width;
+      if (ch !== ' ') {
+        ctx.save(); ctx.translate(x + w / 2, y + (rnd() - .5) * 4); ctx.rotate((rnd() - .5) * 0.09);
+        ctx.fillText(ch, -w / 2, 0); ctx.restore();
+      }
+      x += w + size * 0.1;
+    }
+  });
+  const img = new Image(); img.onload = () => process(img); img.src = c.toDataURL('image/png');
+}
+function measure(ctx, t) { return [...t].reduce((s, ch) => s + ctx.measureText(ch).width + 6.6, 0); }
+
+function expectedText() { return expectedEl.value; }
+
+/* ---------- Обработка изображения ---------- */
+async function process(img) {
+  setStatus('Ищем буквы…');
+  await new Promise(r => setTimeout(r, 30));
+  const maxSide = 2000, k = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+  const W = Math.round(img.naturalWidth * k), H = Math.round(img.naturalHeight * k);
+  const cv = $('#scan'); cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, W, H);
+  const data = ctx.getImageData(0, 0, W, H).data;
+  const chars = [...expectedText().replace(/\s+/g, '')];
+  const res = analyze(data, W, H, expectedText());
+  if (!res || !res.items.length) return setStatus('На фото почти нет текста. Сфотографируй лист ближе и при хорошем свете.', 'warn');
+  state.analysis = res; state.W = W;
+  // чистая копия фото — для окна правки (на #scan рисуются рамки)
+  state.photo = document.createElement('canvas'); state.photo.width = W; state.photo.height = H;
+  state.photo.getContext('2d').drawImage(img, 0, 0, W, H);
+
+  // Экземпляры: для каждого символа — все вхождения, лучшие (отдельные, не вырезанные) первыми
+  state.instances = {}; state.choice = {};
+  for (const it of res.items) {
+    const inst = traceItem(it, res.lines[it.line], W);
+    if (inst) { inst.item = it; (state.instances[it.char] ||= []).push(inst); }
+  }
+  for (const ch in state.instances) { rankInstances(state.instances[ch]); state.choice[ch] = 0; }
+
+  drawItems(ctx, res.items, res.lines);
+  const found = res.items.length, ratio = found / res.total;
+  const cut = res.items.filter(i => i.split).length;
+  setStatus(`Нашли ${found} из ${res.total} знаков, ${Object.keys(state.instances).length} разных символов` +
+    (cut ? `, ${cut} вырезали из слитных слов (оранжевые).` : '.') +
+    (ratio < 0.85 ? ' Часть букв не видна — проверь их ниже или пересними фото.' : ''), ratio < 0.85 ? 'warn' : 'ok');
+
+  buildCharset(chars);
+  rebuild();
+  $('#review').classList.remove('hidden'); $('#result').classList.remove('hidden');
+}
+
+/* ---------- Сборка шрифта ---------- */
+function buildCharset(chars) {
+  const set = new Set();
+  for (const c of chars) { set.add(c); if (isLower(c)) set.add(c.toUpperCase()); if (isUpper(c)) set.add(c.toLowerCase()); }
+  state.charset = [...set].sort((a, b) => {
+    const r = c => (PUNCT.has(c) ? 3 : isUpper(c) ? 1 : 2) * 10000 + c.codePointAt(0);
+    return r(a) - r(b);
+  });
+}
+
+// Источник глифа: свой экземпляр, иначе пара по регистру с масштабом (решение проблемы заглавных)
+function glyphSource(ch) {
+  const own = state.instances[ch];
+  if (own) return { rings: own[state.choice[ch] % own.length].rings, sc: 1, auto: false, count: own.length, from: ch };
+  if (isUpper(ch) && state.instances[ch.toLowerCase()]) {
+    const o = state.instances[ch.toLowerCase()];
+    return { rings: o[state.choice[ch.toLowerCase()] % o.length].rings, sc: CH / XH * 0.92, auto: true, from: ch.toLowerCase() };
+  }
+  if (isLower(ch) && state.instances[ch.toUpperCase()]) {
+    const o = state.instances[ch.toUpperCase()];
+    return { rings: o[state.choice[ch.toUpperCase()] % o.length].rings, sc: XH / CH, auto: true, from: ch.toUpperCase() };
+  }
+  return null;
+}
+
+function makeGlyph(ch, src) {
+  const pts = src.rings.flat().map(([x, y]) => [x * src.sc, y * src.sc]);
+  const minX = Math.min(...pts.map(p => p[0])), maxX = Math.max(...pts.map(p => p[0]));
+  const sb = PUNCT.has(ch) ? 34 : 46, dx = sb - minX;
+  const path = new opentype.Path();
+  for (const r of src.rings) {
+    const p = r.map(([x, y]) => [x * src.sc + dx, y * src.sc]), n = p.length;
+    const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const s = mid(p[n - 1], p[0]);
+    path.moveTo(s[0], s[1]);
+    for (let i = 0; i < n; i++) { const m = mid(p[i], p[(i + 1) % n]); path.quadraticCurveTo(p[i][0], p[i][1], m[0], m[1]); }
+    path.close();
+  }
+  const cp = ch.codePointAt(0);
+  return new opentype.Glyph({ name: 'uni' + cp.toString(16).toUpperCase().padStart(4, '0'), unicode: cp, advanceWidth: Math.round(maxX - minX + 2 * sb), path });
+}
+
+function rebuild() {
+  const name = ($('#fontName').value || 'My Handwriting').trim();
+  const glyphs = [
+    new opentype.Glyph({ name: '.notdef', unicode: 0, advanceWidth: 500, path: new opentype.Path() }),
+    new opentype.Glyph({ name: 'space', unicode: 32, advanceWidth: 300, path: new opentype.Path() }),
+  ];
+  let yMax = 800, yMin = -250;
+  for (const ch of state.charset) {
+    const src = glyphSource(ch); if (!src) continue;
+    const g = makeGlyph(ch, src); glyphs.push(g);
+    const bb = g.getBoundingBox(); yMax = Math.max(yMax, bb.y2 + 20); yMin = Math.min(yMin, bb.y1 - 20);
+  }
+  state.font = new opentype.Font({ familyName: name, styleName: 'Regular', unitsPerEm: UPM, ascender: Math.round(yMax), descender: Math.round(yMin), glyphs });
+  const fam = 'inkself-' + Date.now();
+  const face = new FontFace(fam, state.font.toArrayBuffer());
+  face.load().then(f => {
+    document.fonts.add(f);
+    if (state.previewFamily) for (const old of document.fonts) if (old.family === state.previewFamily) document.fonts.delete(old);
+    state.previewFamily = fam;
+    document.documentElement.style.setProperty('--userfont', `'${fam}'`);
+    $('#previewText').style.fontFamily = `'${fam}', -apple-system, sans-serif`;
+    renderGrid(fam);
+  });
+}
+
+function renderGrid(fam) {
+  const grid = $('#grid'); grid.innerHTML = '';
+  for (const ch of state.charset) {
+    const src = glyphSource(ch), t = document.createElement('div');
+    t.className = 'tile' + (!src ? ' miss' : src.auto ? ' auto' : '');
+    t.innerHTML = `<span class="k"></span><span class="g"></span><span class="n"></span>`;
+    t.querySelector('.k').textContent = ch;
+    const g = t.querySelector('.g'); g.textContent = ch; g.style.fontFamily = src ? `'${fam}'` : '-apple-system, sans-serif';
+    if (src && src.count > 1) t.querySelector('.n').textContent = `${(state.choice[ch] % src.count) + 1}/${src.count}`;
+    if (src) t.onclick = () => openEditor(src.from, ch);
+    else t.title = 'Этой буквы нет на фото';
+    grid.appendChild(t);
+  }
+}
+
+/* ---------- Шаг 4 ---------- */
+$('#size').oninput = e => $('#previewText').style.fontSize = e.target.value + 'px';
+$('#track').oninput = e => $('#previewText').style.letterSpacing = (e.target.value / 1000) + 'em';
+$('#fontName').onchange = () => state.font && rebuild();
+$('#buyBtn').onclick = () => {
+  if (!state.font) return;
+  if (CONFIG.paymentLink) { location.href = CONFIG.paymentLink; return; }
+  state.font.download(($('#fontName').value || 'MyHandwriting').replace(/\s+/g, '') + '-Regular.otf');
+};
+
+// для тестов и записи роликов
+window.inkself = { state, runDemo, setScript, process };
