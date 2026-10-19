@@ -86,7 +86,8 @@
   .sheet{border:1px solid var(--line);border-radius:var(--radius);padding:24px 30px;
          font-family:'Neucha',cursive;font-size:clamp(20px,2.8vw,28px);line-height:1.7;color:var(--ink);
          background:#fff repeating-linear-gradient(transparent 0 calc(1.7em - 1px), var(--line) calc(1.7em - 1px) 1.7em) 0 24px/100% calc(100% - 48px) no-repeat}
-  .sheet textarea{all:unset;display:block;width:100%;white-space:pre-wrap;min-height:5em}
+  /* без all:unset — в Safari он выключает ввод текста */
+  .sheet textarea{appearance:none;border:0;outline:none;background:transparent;margin:0;padding:0;font:inherit;color:inherit;resize:none;box-shadow:none;display:block;width:100%;line-height:inherit;white-space:pre-wrap;min-height:5em;overflow:hidden}
   .tips{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:24px;margin-top:36px}
   .tip{font-size:15px;color:var(--soft)}
   .tip b{display:block;margin-bottom:4px}
@@ -114,7 +115,8 @@
   .legend{font-size:13px;color:var(--soft);margin:14px 0 0}
 
   .preview{border:1px solid var(--line);border-radius:var(--radius);padding:28px 30px}
-  #previewText{all:unset;display:block;width:100%;min-height:3.2em;font-size:56px;line-height:1.15;color:var(--ink);white-space:pre-wrap;word-break:break-word}
+  .preview{cursor:text}
+  #previewText{appearance:none;border:0;outline:none;background:transparent;margin:0;padding:0;font:inherit;color:inherit;resize:none;box-shadow:none;display:block;width:100%;min-height:2.4em;font-size:56px;line-height:1.15;color:var(--ink);overflow:hidden;word-break:break-word}
   .controls{display:flex;gap:22px;align-items:center;flex-wrap:wrap;margin-top:20px;font-size:15px;color:var(--soft)}
   .controls input[type=text]{font:inherit;color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:9px 12px;min-width:200px}
   .controls input[type=range]{accent-color:var(--ink)}
@@ -224,7 +226,7 @@
   <h2 data-i18n="s4h"></h2>
   <p class="sub" data-i18n="s4sub"></p>
   <div class="preview">
-    <div id="previewText" contenteditable="true" spellcheck="false">Hello, world! This is my handwriting.</div>
+    <textarea id="previewText" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" rows="2" aria-label="Preview">Hello, world! This is my handwriting.</textarea>
   </div>
   <div class="controls">
     <label><span data-i18n="lblName"></span> <input type="text" id="fontName" value="My Handwriting"></label>

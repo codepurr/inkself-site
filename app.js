@@ -211,6 +211,7 @@ function rebuild() {
     state.previewFamily = fam;
     document.documentElement.style.setProperty('--userfont', `'${fam}'`);
     $('#previewText').style.fontFamily = `'${fam}', -apple-system, sans-serif`;
+    fitPreview();
     renderGrid(fam);
   });
 }
@@ -231,8 +232,13 @@ function renderGrid(fam) {
 }
 
 /* ---------- Шаг 4 ---------- */
-$('#size').oninput = e => $('#previewText').style.fontSize = e.target.value + 'px';
-$('#track').oninput = e => $('#previewText').style.letterSpacing = (e.target.value / 1000) + 'em';
+// поле «Попробуй»: высота растёт по тексту, клик в любом месте рамки ставит курсор
+const preview = $('#previewText');
+function fitPreview() { preview.style.height = 'auto'; preview.style.height = preview.scrollHeight + 'px'; }
+preview.addEventListener('input', fitPreview);
+$('.preview').addEventListener('mousedown', e => { if (e.target !== preview) { e.preventDefault(); preview.focus(); preview.setSelectionRange(preview.value.length, preview.value.length); } });
+$('#size').oninput = e => { preview.style.fontSize = e.target.value + 'px'; fitPreview(); };
+$('#track').oninput = e => { preview.style.letterSpacing = (e.target.value / 1000) + 'em'; fitPreview(); };
 $('#fontName').onchange = () => state.font && rebuild();
 $('#buyBtn').onclick = () => {
   if (!state.font) return;
