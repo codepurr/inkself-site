@@ -36,14 +36,14 @@
   .wrap{max-width:1040px;margin:0 auto;padding:0 24px}
   .display{font-family:var(--display);font-weight:400;font-style:italic}
 
-  /* навигация — стеклянная капсула */
-  nav{position:fixed;top:16px;left:16px;right:16px;z-index:20;display:flex;justify-content:center;pointer-events:none}
-  .pill{pointer-events:auto;width:100%;max-width:1040px;height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 10px 0 26px;border-radius:999px;
-        background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);color:#fff;transition:background .3s,color .3s,border-color .3s}
-  nav.solid .pill{background:rgba(255,255,255,.82);border-color:var(--line);color:var(--ink)}
-  .logo{font-family:var(--display);font-style:italic;font-size:27px;line-height:1;text-decoration:none}
-  .pill a.go{font-size:15px;text-decoration:none;padding:10px 18px;border-radius:999px;background:rgba(255,255,255,.18)}
-  nav.solid .pill a.go{background:var(--ink);color:#fff}
+  /* навигация: только название и кнопка поверх фото, без подложки; уезжает вместе с первым экраном */
+  nav{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:26px clamp(20px,4vw,44px);color:#fff}
+  .logo{font-family:var(--display);font-style:italic;font-size:30px;line-height:1;text-decoration:none;text-shadow:0 1px 12px rgba(14,18,10,.25)}
+  .nav-r{display:flex;align-items:center;gap:18px}
+  .lang{border:0;background:none;color:#fff;font:inherit;font-size:15px;letter-spacing:.06em;cursor:pointer;opacity:.85;padding:6px 2px}
+  .lang:hover{opacity:1}
+  nav a.go{font-size:15px;text-decoration:none;padding:11px 20px;border-radius:999px;background:#fff;color:var(--ink);transition:opacity .2s}
+  nav a.go:hover{opacity:.9}
 
   /* первый экран */
   .hero{position:relative;min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#fff;padding:120px 20px 80px;
@@ -51,6 +51,7 @@
   @media (min-width:1200px){.hero{background-image:url('assets/hero.jpg')}}
   .hero::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,18,10,.55) 0%,rgba(14,18,10,.15) 45%,rgba(14,18,10,.05) 70%,rgba(14,18,10,.25) 100%)}
   .hero>*{position:relative}
+  .hero>nav{position:absolute}
   h1{font-family:var(--display);font-weight:400;font-style:italic;font-size:clamp(58px,11vw,136px);line-height:.95;letter-spacing:-.01em;margin:0 0 22px}
   h1 .hand{font-family:var(--userfont,var(--display))}
   .lead{font-size:clamp(17px,2vw,20px);max-width:520px;margin:0 auto 34px;opacity:.92}
@@ -127,7 +128,7 @@
   .ed-card{background:#fff;border-radius:var(--radius);padding:24px 26px;width:100%;max-width:688px;max-height:calc(100vh - 32px);overflow:auto;box-shadow:0 20px 60px rgba(20,22,18,.25)}
   .ed-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px}
   .ed-title{font-family:var(--display);font-style:italic;font-size:34px;line-height:1}
-  .ed-title span{font-family:var(--userfont,'Neucha'),cursive;font-style:normal;margin-left:6px}
+  .ed-title .ch{font-family:var(--userfont,'Neucha'),cursive;font-style:normal;margin-left:6px}
   .ed-sub{font-size:14px;color:var(--soft);margin-top:6px}
   .ed-x{border:0;background:var(--mist);width:34px;height:34px;border-radius:50%;font-size:20px;line-height:1;color:var(--ink);cursor:pointer;flex:none}
   .ed-stage{background:var(--mist);border-radius:16px;padding:10px;display:flex;justify-content:center}
@@ -144,7 +145,7 @@
 
   .hidden{display:none!important}
   @media (max-width:600px){
-    nav{top:12px;left:12px;right:12px} .pill{height:52px;padding-left:20px} .logo{font-size:24px}
+    nav{padding:20px} .logo{font-size:26px} .nav-r{gap:12px} nav a.go{padding:10px 16px}
     section.step{padding-top:88px} section.step:last-of-type{padding-bottom:88px}
     #previewText{font-size:40px} .card,.preview,.buy{padding:20px} .sheet{padding:18px 20px}
     .modal{align-items:flex-end;padding:0} .ed-card{border-radius:22px 22px 0 0;max-height:92vh;padding:20px 16px}
@@ -154,53 +155,55 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/opentype.js/1.3.4/opentype.min.js"></script>
 </head>
 <body>
-<nav id="nav"><div class="pill">
-  <a class="logo" href="#top">inkself</a>
-  <a class="go" href="#write">Создать шрифт</a>
-</div></nav>
-
 <header class="hero" id="top">
+  <nav>
+    <a class="logo" href="#top">inkself</a>
+    <div class="nav-r">
+      <button class="lang" id="langBtn"></button>
+      <a class="go" href="#write" data-i18n="navGo">Создать шрифт</a>
+    </div>
+  </nav>
   <h1>Your handwriting,<br><span class="hand">your font.</span></h1>
-  <p class="lead">Три строчки от руки и одно фото — через минуту у тебя настоящий шрифт .otf.</p>
+  <p class="lead" data-i18n="lead"></p>
   <div class="ask">
-    <p>Без шаблонов и таблиц. Всё считается в браузере: твой почерк никуда не уходит.</p>
+    <p data-i18n="askP"></p>
     <div class="bar">
       <span class="apps">Canva · Figma · Procreate · Word</span>
-      <a class="round" href="#write" aria-label="Начать">↓</a>
+      <a class="round" href="#write" data-i18n-aria="startAria">↓</a>
     </div>
   </div>
-  <button class="demo" id="demoTop">или посмотреть на демо-почерке</button>
+  <button class="demo" id="demoTop" data-i18n="demoTop"></button>
 </header>
 
 <section class="step" id="write"><div class="wrap">
   <div class="num">01</div>
-  <h2>Перепиши строки на бумаге</h2>
-  <p class="sub">Обычной ручкой, печатными буквами. Последняя строка — заглавными: так получатся и большие, и маленькие буквы.</p>
+  <h2 data-i18n="s1h"></h2>
+  <p class="sub" data-i18n="s1sub"></p>
   <div class="seg" id="scriptSeg">
-    <button data-s="latin" class="on">Latin</button>
-    <button data-s="cyrillic">Кириллица</button>
-    <button data-s="both">Обе</button>
-    <button data-s="own">Свой текст</button>
+    <button data-s="latin" class="on" data-i18n="segLatin"></button>
+    <button data-s="cyrillic" data-i18n="segCyr"></button>
+    <button data-s="both" data-i18n="segBoth"></button>
+    <button data-s="own" data-i18n="segOwn"></button>
   </div>
   <div class="sheet"><textarea id="expected" spellcheck="false" readonly></textarea></div>
   <div class="tips">
-    <div class="tip"><b>Буквы не касаются</b>Небольшой зазор между буквами, без слитного письма.</div>
-    <div class="tip"><b>Тёмная ручка</b>Гелевая или линер. Карандаш распознаётся хуже.</div>
-    <div class="tip"><b>Ровный свет</b>Снимай сверху, без тени от телефона, лист целиком.</div>
-    <div class="tip"><b>Переносы — можно</b>Пиши в своём размере, строки мы найдём сами.</div>
+    <div class="tip"><b data-i18n="tip1b"></b><span data-i18n="tip1"></span></div>
+    <div class="tip"><b data-i18n="tip2b"></b><span data-i18n="tip2"></span></div>
+    <div class="tip"><b data-i18n="tip3b"></b><span data-i18n="tip3"></span></div>
+    <div class="tip"><b data-i18n="tip4b"></b><span data-i18n="tip4"></span></div>
   </div>
 </div></section>
 
 <section class="step" id="upload"><div class="wrap">
   <div class="num">02</div>
-  <h2>Загрузи фото</h2>
-  <p class="sub">Обработка идёт прямо в браузере — твой почерк никуда не уходит.</p>
+  <h2 data-i18n="s2h"></h2>
+  <p class="sub" data-i18n="s2sub"></p>
   <label class="drop" id="drop">
     <input type="file" id="file" accept="image/*" hidden>
-    <div class="t">Перетащи фото сюда</div>
-    <p>или нажми, чтобы выбрать · JPG, PNG, HEIC-скриншот</p>
+    <div class="t" data-i18n="dropT"></div>
+    <p data-i18n="dropP"></p>
   </label>
-  <div class="row"><button class="btn ghost" id="demoBtn">Нет листа под рукой? Сгенерировать демо-почерк</button></div>
+  <div class="row"><button class="btn ghost" id="demoBtn" data-i18n="demoBtn"></button></div>
   <div id="scanWrap">
     <canvas id="scan"></canvas>
     <div class="status" id="status"></div>
@@ -209,61 +212,57 @@
 
 <section class="step hidden" id="review"><div class="wrap">
   <div class="num">03</div>
-  <h2>Проверь буквы</h2>
-  <p class="sub">Нажми на букву: увидишь, где мы её нашли на фото, и сможешь подвинуть границы или выбрать другой вариант.</p>
+  <h2 data-i18n="s3h"></h2>
+  <p class="sub" data-i18n="s3sub"></p>
   <div class="card"><div class="grid" id="grid"></div>
-    <p class="legend">Пунктир — буква достроена автоматически (например, заглавная из строчной). Бежевый — не нашли, будет системный шрифт.</p>
+    <p class="legend" data-i18n="legend"></p>
   </div>
 </div></section>
 
 <section class="step hidden" id="result"><div class="wrap">
   <div class="num">04</div>
-  <h2>Готово. Попробуй</h2>
-  <p class="sub">Печатай ниже — это уже твой шрифт.</p>
+  <h2 data-i18n="s4h"></h2>
+  <p class="sub" data-i18n="s4sub"></p>
   <div class="preview">
     <div id="previewText" contenteditable="true" spellcheck="false">Hello, world! This is my handwriting.</div>
   </div>
   <div class="controls">
-    <label>Название <input type="text" id="fontName" value="My Handwriting"></label>
-    <label>Размер <input type="range" id="size" min="20" max="120" value="56"></label>
-    <label>Межбуквенный <input type="range" id="track" min="-40" max="120" value="0"></label>
+    <label><span data-i18n="lblName"></span> <input type="text" id="fontName" value="My Handwriting"></label>
+    <label><span data-i18n="lblSize"></span> <input type="range" id="size" min="20" max="120" value="56"></label>
+    <label><span data-i18n="lblTrack"></span> <input type="range" id="track" min="-40" max="120" value="0"></label>
   </div>
   <div class="buy">
-    <div><div class="price">$7</div><small>Один раз за шрифт · .otf · личное и коммерческое использование</small></div>
-    <button class="btn" id="buyBtn">Скачать шрифт</button>
+    <div><div class="price">$7</div><small data-i18n="buyNote"></small></div>
+    <button class="btn" id="buyBtn" data-i18n="buyBtn"></button>
   </div>
 </div></section>
 
 <div class="modal hidden" id="editor" role="dialog" aria-modal="true" aria-labelledby="edTitle">
   <div class="ed-card">
     <div class="ed-head">
-      <div><div class="ed-title" id="edTitle">Буква <span id="edChar"></span></div><div class="ed-sub" id="edSub"></div></div>
-      <button class="ed-x" id="edClose" aria-label="Закрыть">×</button>
+      <div><div class="ed-title" id="edTitle"><span data-i18n="edLetter"></span> <span class="ch" id="edChar"></span></div><div class="ed-sub" id="edSub"></div></div>
+      <button class="ed-x" id="edClose" data-i18n-aria="edCloseAria">×</button>
     </div>
     <div class="ed-stage"><canvas id="edCanvas"></canvas></div>
-    <p class="ed-hint">Тяни ручки, чтобы сдвинуть границы. Тёмным — то, что попадёт в шрифт, серым — соседние буквы.</p>
+    <p class="ed-hint" data-i18n="edHint"></p>
     <div class="ed-row">
-      <div class="ed-variants"><button id="edPrev" aria-label="Предыдущий вариант">‹</button><span id="edVar"></span><button id="edNext" aria-label="Следующий вариант">›</button></div>
-      <canvas id="edGlyph" aria-label="Превью буквы"></canvas>
+      <div class="ed-variants"><button id="edPrev" data-i18n-aria="edPrevAria">‹</button><span id="edVar"></span><button id="edNext" data-i18n-aria="edNextAria">›</button></div>
+      <canvas id="edGlyph" data-i18n-aria="edGlyphAria"></canvas>
     </div>
     <div class="ed-actions">
-      <button class="btn ghost" id="edDrop">Убрать этот вариант</button>
-      <button class="btn ghost" id="edReset">Сбросить</button>
-      <button class="btn" id="edApply">Применить</button>
+      <button class="btn ghost" id="edDrop" data-i18n="edDrop"></button>
+      <button class="btn ghost" id="edReset" data-i18n="edReset"></button>
+      <button class="btn" id="edApply" data-i18n="edApply"></button>
     </div>
   </div>
 </div>
 
-<footer>inkself · всё считается локально в браузере · шрифты сайта: Britney и Quicksand с Fontshare</footer>
+<footer data-i18n="footer"></footer>
 
+<script src="i18n.js"></script>
 <script src="pipeline.js"></script>
 <script src="app.js"></script>
 <script src="editor.js"></script>
-<script>
-  // капсула навигации становится светлой, когда первый экран ушёл вверх
-  const nav = document.getElementById('nav');
-  new IntersectionObserver(([e]) => nav.classList.toggle('solid', !e.isIntersecting), { rootMargin: '-80px 0px 0px 0px' })
-    .observe(document.getElementById('top'));
-</script>
+<script>applyLang();</script>
 </body>
 </html>

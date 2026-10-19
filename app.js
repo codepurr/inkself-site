@@ -35,7 +35,7 @@ function setScript(s) {
   document.querySelectorAll('#scriptSeg button').forEach(b => b.classList.toggle('on', b.dataset.s === s));
   if (s === 'own') {
     expectedEl.readOnly = false;
-    if (!expectedEl.dataset.own) expectedEl.value = 'Напиши здесь то, что ты написал(а) на листе,\nстрока в строку.\nИ ЕЩЁ СТРОКУ ЗАГЛАВНЫМИ!';
+    if (!expectedEl.dataset.own) expectedEl.value = t('ownText');
     expectedEl.focus();
   } else {
     expectedEl.readOnly = true;
@@ -60,15 +60,19 @@ $('#demoTop').onclick = () => { document.querySelector('#upload').scrollIntoView
 function loadFile(f) {
   const img = new Image();
   img.onload = () => process(img);
-  img.onerror = () => setStatus('Не получилось открыть файл. Попробуй JPG или PNG.', 'warn');
+  img.onerror = () => setStatus('stOpenFail', 'warn');
   img.src = URL.createObjectURL(f);
 }
 
-function setStatus(t, cls = '') { const s = $('#status'); s.textContent = t; s.className = 'status ' + cls; $('#scanWrap').style.display = 'block'; }
+// статус храним ключом, чтобы перевести его при смене языка
+function setStatus(key, cls = '', vars = {}) {
+  state.status = { key, cls, vars };
+  const s = $('#status'); s.textContent = t(key, vars); s.className = 'status ' + cls; $('#scanWrap').style.display = 'block';
+}
 
 /* Демо: рисуем «почерк» рукописным шрифтом с дрожанием, как будто фото листа */
 async function runDemo() {
-  setStatus('Пишем демо-лист…');
+  setStatus('stDemo');
   await document.fonts.load('64px Neucha');
   const lines = expectedText().split('\n').filter(l => l.trim());
   const W = 1800, size = 66, lh = size * 1.9;
@@ -109,7 +113,7 @@ function expectedText() { return expectedEl.value; }
 
 /* ---------- Обработка изображения ---------- */
 async function process(img) {
-  setStatus('Ищем буквы…');
+  setStatus('stSearching');
   await new Promise(r => setTimeout(r, 30));
   const maxSide = 2000, k = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
   const W = Math.round(img.naturalWidth * k), H = Math.round(img.naturalHeight * k);
@@ -119,7 +123,7 @@ async function process(img) {
   const data = ctx.getImageData(0, 0, W, H).data;
   const chars = [...expectedText().replace(/\s+/g, '')];
   const res = analyze(data, W, H, expectedText());
-  if (!res || !res.items.length) return setStatus('На фото почти нет текста. Сфотографируй лист ближе и при хорошем свете.', 'warn');
+  if (!res || !res.items.length) return setStatus('stNoText', 'warn');
   state.analysis = res; state.W = W;
   // чистая копия фото — для окна правки (на #scan рисуются рамки)
   state.photo = document.createElement('canvas'); state.photo.width = W; state.photo.height = H;
@@ -136,9 +140,8 @@ async function process(img) {
   drawItems(ctx, res.items, res.lines);
   const found = res.items.length, ratio = found / res.total;
   const cut = res.items.filter(i => i.split).length;
-  setStatus(`Нашли ${found} из ${res.total} знаков, ${Object.keys(state.instances).length} разных символов` +
-    (cut ? `, ${cut} вырезали из слитных слов (оранжевые).` : '.') +
-    (ratio < 0.85 ? ' Часть букв не видна — проверь их ниже или пересними фото.' : ''), ratio < 0.85 ? 'warn' : 'ok');
+  const low = ratio < 0.85;
+  setStatus('stFound', low ? 'warn' : 'ok', { found, total: res.total, kinds: Object.keys(state.instances).length, cut, low });
 
   buildCharset(chars);
   rebuild();
@@ -215,15 +218,15 @@ function rebuild() {
 function renderGrid(fam) {
   const grid = $('#grid'); grid.innerHTML = '';
   for (const ch of state.charset) {
-    const src = glyphSource(ch), t = document.createElement('div');
-    t.className = 'tile' + (!src ? ' miss' : src.auto ? ' auto' : '');
-    t.innerHTML = `<span class="k"></span><span class="g"></span><span class="n"></span>`;
-    t.querySelector('.k').textContent = ch;
-    const g = t.querySelector('.g'); g.textContent = ch; g.style.fontFamily = src ? `'${fam}'` : '-apple-system, sans-serif';
-    if (src && src.count > 1) t.querySelector('.n').textContent = `${(state.choice[ch] % src.count) + 1}/${src.count}`;
-    if (src) t.onclick = () => openEditor(src.from, ch);
-    else t.title = 'Этой буквы нет на фото';
-    grid.appendChild(t);
+    const src = glyphSource(ch), tile = document.createElement('div');
+    tile.className = 'tile' + (!src ? ' miss' : src.auto ? ' auto' : '');
+    tile.innerHTML = `<span class="k"></span><span class="g"></span><span class="n"></span>`;
+    tile.querySelector('.k').textContent = ch;
+    const g = tile.querySelector('.g'); g.textContent = ch; g.style.fontFamily = src ? `'${fam}'` : '-apple-system, sans-serif';
+    if (src && src.count > 1) tile.querySelector('.n').textContent = `${(state.choice[ch] % src.count) + 1}/${src.count}`;
+    if (src) tile.onclick = () => openEditor(src.from, ch);
+    else tile.title = t('missingTile');
+    grid.appendChild(tile);
   }
 }
 
@@ -239,3 +242,10 @@ $('#buyBtn').onclick = () => {
 
 // для тестов и записи роликов
 window.inkself = { state, runDemo, setScript, process };
+
+// смена языка: статус, плитки и текст-заготовка «Свой текст»
+langHooks.push(() => {
+  if (state.status) setStatus(state.status.key, state.status.cls, state.status.vars);
+  if (state.previewFamily) renderGrid(state.previewFamily);
+  if (state.script === 'own' && !expectedEl.dataset.own) { expectedEl.value = t('ownText'); autosize(); }
+});

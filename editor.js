@@ -3,11 +3,8 @@ const ed = { el: $('#editor'), cv: $('#edCanvas'), gl: $('#edGlyph') };
 
 function openEditor(ch, shownAs) {
   const list = state.instances[ch]; if (!list || !list.length) return;
-  ed.ch = ch; ed.idx = state.choice[ch] % list.length;
+  ed.ch = ch; ed.shownAs = shownAs; ed.idx = state.choice[ch] % list.length;
   $('#edChar').textContent = ch;
-  $('#edSub').textContent = shownAs !== ch
-    ? `«${shownAs}» нет на фото — она построена из «${ch}». Правка изменит обе.`
-    : list.length > 1 ? `На фото ${list.length} варианта этой буквы — выбери лучший.` : 'На фото один вариант этой буквы.';
   ed.el.classList.remove('hidden');
   document.body.style.overflow = 'hidden';
   loadVariant();
@@ -28,10 +25,17 @@ function loadVariant() {
     y0: Math.max(0, Math.floor(Math.min(it.box.y0, mid - 1.2 * L.medH) - 0.2 * L.medH)),
     y1: Math.min(H - 1, Math.ceil(Math.max(it.box.y1, mid + 1.2 * L.medH))),
   };
-  $('#edVar').textContent = `вариант ${ed.idx + 1} из ${list.length}`;
+  edTexts();
   $('#edPrev').disabled = $('#edNext').disabled = list.length < 2;
   $('#edDrop').disabled = list.length < 2;
   draw();
+}
+
+// подписи окна — отдельно, чтобы перевести их при смене языка
+function edTexts() {
+  const n = state.instances[ed.ch].length;
+  $('#edSub').textContent = ed.shownAs !== ed.ch ? t('edBuilt', { shown: ed.shownAs, ch: ed.ch }) : n > 1 ? t('edMany', { n }) : t('edOne');
+  $('#edVar').textContent = t('edVar', { i: ed.idx + 1, n });
 }
 
 function draw() {
@@ -75,7 +79,7 @@ function drawGlyph(px) {
   const c = ed.gl, x = c.getContext('2d'), S = 96, dpr = window.devicePixelRatio || 1;
   c.width = S * dpr; c.height = S * dpr; c.style.width = c.style.height = S + 'px';
   x.setTransform(dpr, 0, 0, dpr, 0, 0); x.fillStyle = '#fff'; x.fillRect(0, 0, S, S);
-  if (!px.length) { x.fillStyle = '#a65d26'; x.font = '13px -apple-system, sans-serif'; x.fillText('пусто', 30, 52); return; }
+  if (!px.length) { x.fillStyle = '#a65d26'; x.font = '13px -apple-system, sans-serif'; x.textAlign = 'center'; x.fillText(t('edEmptyGlyph'), S / 2, 52); return; }
   const W = state.W; let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
   for (const p of px) { const a = p % W, b = p / W | 0; if (a < x0) x0 = a; if (a > x1) x1 = a; if (b < y0) y0 = b; if (b > y1) y1 = b; }
   const sc = (S - 16) / Math.max(x1 - x0 + 1, y1 - y0 + 1), ox = (S - (x1 - x0 + 1) * sc) / 2, oy = (S - (y1 - y0 + 1) * sc) / 2;
@@ -118,10 +122,12 @@ $('#edDrop').onclick = () => {
 $('#edApply').onclick = () => {
   const n = recut(ed.it, ed.a, ed.b, ed.L, state.W);
   const inst = n && traceItem(n, ed.L, state.W);
-  if (!inst) { $('#edSub').textContent = 'Между границами нет чернил — раздвинь их.'; return; }
+  if (!inst) { $('#edSub').textContent = t('edEmpty'); return; }
   n.orig = ed.it.orig; inst.item = n;
   state.instances[ed.ch][ed.idx] = inst;
   state.choice[ed.ch] = ed.idx;
   rebuild(); closeEditor();
 };
 window.addEventListener('resize', () => !ed.el.classList.contains('hidden') && draw());
+
+langHooks.push(() => { if (!ed.el.classList.contains('hidden')) { edTexts(); draw(); } });
