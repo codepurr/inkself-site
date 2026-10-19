@@ -86,7 +86,6 @@ function setStatus(key, cls = '', vars = {}) {
 /* Демо: рисуем «почерк» рукописным шрифтом с дрожанием, как будто фото листа */
 async function runDemo({ tour = false } = {}) {
   setDemo(true); clearInterval(typing);
-  if (tour) $('#upload').scrollIntoView({ behavior: 'smooth' });
   setStatus('stDemo');
   await document.fonts.load('64px Neucha');
   const lines = expectedText().split('\n').filter(l => l.trim());
@@ -120,26 +119,40 @@ async function runDemo({ tour = false } = {}) {
       x += w + size * 0.1;
     }
   });
-  const img = new Image(); img.src = c.toDataURL('image/png'); await img.decode();
+  const url = c.toDataURL('image/png'), prevFam = state.previewFamily;
+  const img = new Image(); img.src = url; await img.decode();
   await process(img);
-  if (tour) await demoTour();
+  if (tour) await openDemo(url, prevFam);
 }
 
-/* Показ демо: дать рассмотреть найденные буквы, затем перейти к результату и напечатать фразу этим шрифтом */
+/* Окно демо: лист → найденные буквы → фраза, напечатанная получившимся шрифтом. Страница не прыгает. */
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let typing;
-async function demoTour() {
-  await sleep(1600);
-  $('#result').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  await sleep(800);
+async function openDemo(url, prevFam) {
+  // шрифт подключается асинхронно — ждём, пока появится новый
+  for (let i = 0; i < 60 && state.previewFamily === prevFam; i++) await sleep(50);
+  $('#demoSheet').src = url;
+  const box = $('#demoLetters'); box.innerHTML = '';
+  const sample = [...'aAbgGkQRy?!:'].filter(ch => state.instances[ch]).concat(state.charset.filter(ch => state.instances[ch])).filter((c, i, a) => a.indexOf(c) === i).slice(0, 12);
+  for (const ch of sample) {
+    const tile = document.createElement('div'), cv = document.createElement('canvas');
+    tile.className = 'tile'; cv.className = 'gc'; tile.appendChild(cv); box.appendChild(tile); drawTile(cv, ch);
+  }
+  const out = $('#demoType'); out.style.fontFamily = `'${state.previewFamily}', -apple-system, sans-serif`;
+  $('#demoModal').classList.remove('hidden'); document.body.style.overflow = 'hidden';
   // фраза на том же алфавите, что и демо-лист, иначе часть букв будет системным шрифтом
   const cyr = state.script === 'cyrillic' || (state.script === 'both' && LANG === 'ru');
-  typeInto(preview, cyr ? 'Этот шрифт сделан из демо-листа выше.' : 'This font was made from the demo sheet above.');
+  const text = cyr ? 'Это мой новый шрифт.' : 'This is my new font.';
+  clearInterval(typing); out.textContent = ''; let i = 0;
+  await sleep(500);
+  typing = setInterval(() => { out.textContent = text.slice(0, ++i); if (i >= text.length) clearInterval(typing); }, 60);
 }
-function typeInto(el, text) {
-  clearInterval(typing); el.value = ''; let i = 0;
-  typing = setInterval(() => { el.value = text.slice(0, ++i); fitPreview(); if (i >= text.length) clearInterval(typing); }, 45);
-}
+function closeDemo() { clearInterval(typing); $('#demoModal').classList.add('hidden'); document.body.style.overflow = ''; }
+$('#demoClose').onclick = closeDemo;
+$('#demoModal').addEventListener('click', e => e.target === $('#demoModal') && closeDemo());
+document.addEventListener('keydown', e => e.key === 'Escape' && !$('#demoModal').classList.contains('hidden') && closeDemo());
+// из окна демо — сразу к выбору своего фото (в том же нажатии, иначе Safari не откроет выбор файла)
+$('#demoGo').onclick = () => { closeDemo(); $('#upload').scrollIntoView(); fileIn.click(); };
 function measure(ctx, t) { return [...t].reduce((s, ch) => s + ctx.measureText(ch).width + 6.6, 0); }
 
 function expectedText() { return expectedEl.value; }
