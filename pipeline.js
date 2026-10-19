@@ -48,6 +48,9 @@ function segment(data, W, H) {
   // тени, край страниц, цветные предметы светлее настоящих чернил: отсекаем пятна слабее 75% от типичных
   const medInk = median(comps.filter(c => c.area >= 3 * minArea).map(c => c.ink));
   comps = comps.filter(c => c.ink >= 0.75 * medInk);
+  // клякса, залитое пятно, корешок книги: широкое и плотно залитое чернилами (буквы — штрихи, у них заливка 15–40%);
+  // узкие плотные штрихи (l, i, !) и мелкие точки не трогаем
+  comps = comps.filter(c => !(c.area / (c.w * c.h) > 0.6 && c.w > 0.35 * medH && c.h > 0.5 * medH));
   comps = textBlock(comps, medH);
   medH = pct(comps.filter(c => c.area >= 3 * minArea).map(c => c.h), 0.6);
   const lines = buildLines(comps, medH, W);
