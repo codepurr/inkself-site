@@ -351,6 +351,8 @@ function dpChars(cl, chars, sp, lines) {
   const shape = (k, j, cnt, lmh) => {
     if (cnt > 1) return k.h < 0.3 * lmh ? 2 : 0;
     const ch = chars[j];
+    // двоеточие и точка с запятой — две отметки одна над другой, по высоте почти как строчная буква
+    if (ch === ':' || ch === ';') return k.h > 0.95 * lmh ? 2 : 0;
     if (SMALL_PUNCT.has(ch)) return (k.h > 0.6 * lmh ? 2 : 0) + (ch === '-' && k.h > 0.3 * lmh ? 1.2 : 0);
     if (!PUNCT.has(ch) && k.h < 0.28 * lmh) return 2;
     return 0;
