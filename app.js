@@ -88,7 +88,7 @@ async function runDemo() {
   const g = ctx.createLinearGradient(0, 0, W, c.height);
   g.addColorStop(0, '#fbfaf6'); g.addColorStop(1, '#e9e6de');
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, c.height);
-  ctx.font = `${size}px Neucha`; ctx.fillStyle = '#1b2763'; ctx.textBaseline = 'alphabetic';
+  ctx.font = `${size}px Neucha`; ctx.fillStyle = '#22231f'; ctx.textBaseline = 'alphabetic';
   let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   rows.forEach((row, i) => {
     let x = 120 + rnd() * 20; const y = 160 + i * lh;

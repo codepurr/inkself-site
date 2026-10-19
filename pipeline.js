@@ -125,7 +125,22 @@ function textBlock(comps, medH) {
   const size = new Map();
   comps.forEach((c, i) => { if (c.h >= 0.4 * medH) size.set(find(i), (size.get(find(i)) || 0) + 1); });
   const max = Math.max(...size.values());
-  return comps.filter((c, i) => (size.get(find(i)) || 0) >= Math.max(3, 0.3 * max));
+  const keep = new Set([...size].filter(([, n]) => n >= Math.max(3, 0.3 * max)).map(([r]) => r));
+  // короткая строка, отставленная от основного блока («DOG», «wow!»), — тоже текст,
+  // если в ней 2+ пятна высотой с букву, стоящие в одну линию под/над блоком; одиночные рисунки отпадают
+  const box = { x0: 1e9, x1: -1, y0: 1e9, y1: -1 };
+  comps.forEach((c, i) => { if (keep.has(find(i))) { box.x0 = Math.min(box.x0, c.x0); box.x1 = Math.max(box.x1, c.x1); box.y0 = Math.min(box.y0, c.y0); box.y1 = Math.max(box.y1, c.y1); } });
+  const groups = new Map();
+  comps.forEach((c, i) => { const r = find(i); if (!keep.has(r)) (groups.get(r) || groups.set(r, []).get(r)).push(c); });
+  for (const [r, g] of groups) {
+    const big = g.filter(c => c.h >= 0.4 * medH);
+    if (big.length < 2) continue;
+    const mh = median(big.map(c => c.h)), y0 = Math.min(...g.map(c => c.y0)), y1 = Math.max(...g.map(c => c.y1));
+    const x0 = Math.min(...g.map(c => c.x0)), x1 = Math.max(...g.map(c => c.x1));
+    const dy = Math.max(0, box.y0 - y1, y0 - box.y1);
+    if (mh > 0.5 * medH && mh < 1.8 * medH && y1 - y0 < 2.2 * medH && dy < 4 * medH && x1 > box.x0 && x0 < box.x1) keep.add(r);
+  }
+  return comps.filter((c, i) => keep.has(find(i)));
 }
 
 /* Строки: берём «сердцевину» каждой буквы (без выносных), размазываем по горизонтали
@@ -546,14 +561,14 @@ function drawItems(ctx, items, lines) {
   ctx.lineWidth = Math.max(1.5, W / 900);
   const fs = Math.max(12, W / 80);
   ctx.font = `600 ${fs}px -apple-system, sans-serif`;
-  ctx.globalAlpha = 0.35; ctx.strokeStyle = '#1f7a4d';
+  ctx.globalAlpha = 0.35; ctx.strokeStyle = '#3f5a2c';
   for (const L of lines) { ctx.beginPath(); ctx.moveTo(L.big[0].x0, L.baseAt(L.big[0].x0)); ctx.lineTo(L.x1, L.baseAt(L.x1)); ctx.stroke(); }
   ctx.globalAlpha = 1;
   for (const it of items) {
     const b = it.box;
-    ctx.strokeStyle = it.split ? 'rgba(200,100,20,.9)' : 'rgba(29,58,138,.8)';
+    ctx.strokeStyle = it.split ? 'rgba(166,93,38,.9)' : 'rgba(63,90,44,.85)';
     ctx.strokeRect(b.x0 - 2, b.y0 - 2, b.x1 - b.x0 + 4, b.y1 - b.y0 + 4);
-    ctx.fillStyle = it.split ? '#b4541a' : '#1d3a8a';
+    ctx.fillStyle = it.split ? '#a65d26' : '#3f5a2c';
     ctx.fillText(it.char, b.x0, b.y0 - 4);
   }
 }

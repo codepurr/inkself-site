@@ -53,7 +53,7 @@ function draw() {
     if (px < R.x0 || px > R.x1 || py < R.y0 || py > R.y1) continue;
     const s = L.shx(p), on = s >= ed.a && s <= ed.b, o = 4 * ((py - R.y0) * rw + (px - R.x0));
     if (on) sel.push(p);
-    img.data.set(on ? [11, 31, 75, 255] : [178, 186, 206, 255], o);
+    img.data.set(on ? [27, 29, 24, 255] : [200, 201, 193, 255], o);
   }
   const off = document.createElement('canvas'); off.width = rw; off.height = rh; off.getContext('2d').putImageData(img, 0, 0);
   x.imageSmoothingEnabled = false; x.drawImage(off, R.x0, R.y0);
@@ -61,10 +61,10 @@ function draw() {
   // границы: косые линии с наклоном почерка, ручка внизу
   const lx = (s, y) => s - (y - L.baseCy) * L.t;
   for (const s of [ed.a, ed.b]) {
-    x.strokeStyle = '#1d3a8a'; x.lineWidth = 2 / kk; x.setLineDash([6 / kk, 5 / kk]);
+    x.strokeStyle = '#3f5a2c'; x.lineWidth = 2 / kk; x.setLineDash([6 / kk, 5 / kk]);
     x.beginPath(); x.moveTo(lx(s, R.y0), R.y0); x.lineTo(lx(s, R.y1), R.y1); x.stroke(); x.setLineDash([]);
     const hy = R.y1 - 16 / kk;
-    x.fillStyle = '#1d3a8a'; x.beginPath(); x.arc(lx(s, hy), hy, 11 / kk, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#3f5a2c'; x.beginPath(); x.arc(lx(s, hy), hy, 11 / kk, 0, Math.PI * 2); x.fill();
     x.fillStyle = '#fff'; x.fillRect(lx(s, hy) - 3.5 / kk, hy - 1 / kk, 2 / kk, 2 / kk); x.fillRect(lx(s, hy) + 1.5 / kk, hy - 1 / kk, 2 / kk, 2 / kk);
   }
   drawGlyph(sel);
@@ -75,11 +75,11 @@ function drawGlyph(px) {
   const c = ed.gl, x = c.getContext('2d'), S = 96, dpr = window.devicePixelRatio || 1;
   c.width = S * dpr; c.height = S * dpr; c.style.width = c.style.height = S + 'px';
   x.setTransform(dpr, 0, 0, dpr, 0, 0); x.fillStyle = '#fff'; x.fillRect(0, 0, S, S);
-  if (!px.length) { x.fillStyle = '#b4541a'; x.font = '13px -apple-system, sans-serif'; x.fillText('пусто', 30, 52); return; }
+  if (!px.length) { x.fillStyle = '#a65d26'; x.font = '13px -apple-system, sans-serif'; x.fillText('пусто', 30, 52); return; }
   const W = state.W; let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
   for (const p of px) { const a = p % W, b = p / W | 0; if (a < x0) x0 = a; if (a > x1) x1 = a; if (b < y0) y0 = b; if (b > y1) y1 = b; }
   const sc = (S - 16) / Math.max(x1 - x0 + 1, y1 - y0 + 1), ox = (S - (x1 - x0 + 1) * sc) / 2, oy = (S - (y1 - y0 + 1) * sc) / 2;
-  x.fillStyle = '#0b1f4b';
+  x.fillStyle = '#1b1d18';
   for (const p of px) x.fillRect(ox + (p % W - x0) * sc, oy + ((p / W | 0) - y0) * sc, Math.max(1, sc), Math.max(1, sc));
 }
 

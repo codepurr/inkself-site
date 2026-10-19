@@ -3,137 +3,179 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Inkself — твой почерк как шрифт</title>
-<meta name="description" content="Напиши пару предложений от руки, сфотографируй — получи готовый шрифт .otf за минуту.">
+<title>inkself — твой почерк как шрифт</title>
+<meta name="description" content="Напиши три строчки от руки, сфотографируй — получи готовый шрифт .otf за минуту.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Neucha&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Neucha — рукописный образец на «листе»; Playfair Display Italic и Nunito — кириллица вместо Britney и Quicksand -->
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500&family=Neucha&family=Playfair+Display:ital@1&display=swap" rel="stylesheet">
+<link rel="preload" href="fonts/Britney-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/Quicksand-Medium.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+  @font-face{font-family:'Britney';src:url('fonts/Britney-Regular.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+  @font-face{font-family:'Quicksand';src:url('fonts/Quicksand-Medium.woff2') format('woff2');font-weight:100 900;font-style:normal;font-display:swap}
   :root{
-    --ink:#0b1f4b;        /* тёмно-синие чернила */
-    --ink-2:#1d3a8a;
-    --ink-soft:#52608a;
-    --line:#e3e7f0;
+    --ink:#1b1d18;       /* тёплый почти чёрный */
+    --soft:#6f7268;
+    --faint:#a6a89f;
+    --line:#e9e9e3;
+    --mist:#f5f5f0;
     --paper:#ffffff;
-    --mist:#f5f7fb;
-    --ok:#1f7a4d;
-    --warn:#b4541a;
+    --moss:#3f5a2c;      /* мох с фото — единственный акцент */
+    --warn:#a65d26;
+    --display:'Britney','Playfair Display',Georgia,serif;
+    --text:'Quicksand','Nunito',-apple-system,BlinkMacSystemFont,sans-serif;
     --radius:22px;
   }
   *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
   html,body{margin:0;background:var(--paper);color:var(--ink)}
-  body{font:17px/1.47 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
-  a{color:var(--ink-2)}
-  .wrap{max-width:980px;margin:0 auto;padding:0 22px}
-  nav{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.8);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--line)}
-  nav .wrap{display:flex;align-items:center;justify-content:space-between;height:52px}
-  .logo{font-weight:600;letter-spacing:-.01em;font-size:19px}
-  .logo i{font-style:normal;color:var(--ink-2)}
-  nav a.small{font-size:14px;text-decoration:none}
+  body{font:500 17px/1.55 var(--text);-webkit-font-smoothing:antialiased;font-synthesis:none}
+  a{color:inherit}
+  b{font-weight:500;color:var(--ink)}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 24px}
+  .display{font-family:var(--display);font-weight:400;font-style:italic}
 
-  .hero{text-align:center;padding:96px 0 56px}
-  .eyebrow{font-size:15px;font-weight:600;color:var(--ink-2);letter-spacing:.02em}
-  h1{font-size:clamp(44px,8vw,80px);line-height:1.04;letter-spacing:-.035em;font-weight:700;margin:10px 0 18px}
-  h1 .hand{font-family:var(--userfont,'Neucha'),cursive;font-weight:400;color:var(--ink-2);letter-spacing:0}
-  .lead{font-size:clamp(19px,2.4vw,24px);color:var(--ink-soft);max-width:640px;margin:0 auto 30px;letter-spacing:-.01em}
-  .btn{appearance:none;border:0;border-radius:980px;background:var(--ink);color:#fff;font:inherit;font-size:17px;padding:13px 26px;cursor:pointer;transition:transform .15s,background .2s}
-  .btn:hover{background:var(--ink-2)}
+  /* навигация — стеклянная капсула */
+  nav{position:fixed;top:16px;left:16px;right:16px;z-index:20;display:flex;justify-content:center;pointer-events:none}
+  .pill{pointer-events:auto;width:100%;max-width:1040px;height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 10px 0 26px;border-radius:999px;
+        background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);color:#fff;transition:background .3s,color .3s,border-color .3s}
+  nav.solid .pill{background:rgba(255,255,255,.82);border-color:var(--line);color:var(--ink)}
+  .logo{font-family:var(--display);font-style:italic;font-size:27px;line-height:1;text-decoration:none}
+  .pill a.go{font-size:15px;text-decoration:none;padding:10px 18px;border-radius:999px;background:rgba(255,255,255,.18)}
+  nav.solid .pill a.go{background:var(--ink);color:#fff}
+
+  /* первый экран */
+  .hero{position:relative;min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#fff;padding:120px 20px 80px;
+        background:#5d7a3a url('assets/hero-1200.jpg') center 70%/cover no-repeat;overflow:hidden}
+  @media (min-width:1200px){.hero{background-image:url('assets/hero.jpg')}}
+  .hero::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,18,10,.55) 0%,rgba(14,18,10,.15) 45%,rgba(14,18,10,.05) 70%,rgba(14,18,10,.25) 100%)}
+  .hero>*{position:relative}
+  h1{font-family:var(--display);font-weight:400;font-style:italic;font-size:clamp(58px,11vw,136px);line-height:.95;letter-spacing:-.01em;margin:0 0 22px}
+  h1 .hand{font-family:var(--userfont,var(--display))}
+  .lead{font-size:clamp(17px,2vw,20px);max-width:520px;margin:0 auto 34px;opacity:.92}
+  .ask{width:100%;max-width:580px;background:rgba(255,255,255,.9);color:var(--ink);border-radius:var(--radius);padding:20px 20px 16px 24px;text-align:left;
+       backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 20px 60px rgba(14,18,10,.25)}
+  .ask p{margin:0 0 18px;color:var(--soft)}
+  .ask .bar{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .ask .apps{font-size:14px;color:var(--soft)}
+  .round{flex:none;width:46px;height:46px;border-radius:50%;border:0;background:var(--ink);color:#fff;font-size:20px;display:grid;place-items:center;text-decoration:none;cursor:pointer;transition:transform .15s}
+  .round:hover{transform:translateY(-1px)}
+  .hero .demo{margin-top:20px;background:none;border:0;color:#fff;font:inherit;font-size:15px;opacity:.9;cursor:pointer;text-decoration:underline;text-underline-offset:4px}
+
+  /* кнопки */
+  .btn{appearance:none;border:0;border-radius:999px;background:var(--ink);color:#fff;font:inherit;font-size:16px;padding:13px 26px;cursor:pointer;transition:transform .15s,opacity .2s}
+  .btn:hover{opacity:.88}
   .btn:active{transform:scale(.98)}
-  .btn.ghost{background:transparent;color:var(--ink-2);padding:13px 18px}
-  .btn.ghost:hover{text-decoration:underline;background:transparent}
-  .btn[disabled]{opacity:.4;cursor:default}
+  .btn.ghost{background:transparent;color:var(--ink);padding:13px 16px;text-decoration:underline;text-underline-offset:4px;text-decoration-color:var(--faint)}
+  .btn[disabled]{opacity:.35;cursor:default}
 
-  section.step{padding:72px 0;border-top:1px solid var(--line)}
-  .num{display:inline-flex;width:30px;height:30px;border-radius:50%;border:1.5px solid var(--ink);align-items:center;justify-content:center;font-size:14px;font-weight:600;margin-bottom:14px}
-  h2{font-size:clamp(30px,4.6vw,48px);letter-spacing:-.03em;line-height:1.08;margin:0 0 12px;font-weight:700}
-  .sub{color:var(--ink-soft);font-size:19px;max-width:640px;margin:0 0 28px}
+  /* шаги */
+  section.step{padding:128px 0 0}
+  section.step:last-of-type{padding-bottom:128px}
+  .num{font-size:14px;color:var(--faint);letter-spacing:.08em;margin-bottom:16px}
+  h2{font-family:var(--display);font-weight:400;font-style:italic;font-size:clamp(42px,6.4vw,76px);line-height:1;letter-spacing:-.01em;margin:0 0 18px}
+  .sub{color:var(--soft);font-size:18px;max-width:560px;margin:0 0 40px}
 
-  .seg{display:inline-flex;background:var(--mist);border-radius:980px;padding:4px;margin-bottom:22px;flex-wrap:wrap}
-  .seg button{border:0;background:transparent;font:inherit;font-size:15px;padding:8px 16px;border-radius:980px;color:var(--ink);cursor:pointer}
-  .seg button.on{background:#fff;box-shadow:0 1px 4px rgba(11,31,75,.12)}
+  .seg{display:inline-flex;gap:4px;margin-bottom:24px;flex-wrap:wrap}
+  .seg button{border:1px solid var(--line);background:#fff;font:inherit;font-size:15px;padding:8px 16px;border-radius:999px;color:var(--soft);cursor:pointer}
+  .seg button.on{background:var(--ink);border-color:var(--ink);color:#fff}
 
   .card{background:var(--mist);border-radius:var(--radius);padding:28px}
-  .sheet{background:#fff;border-radius:16px;padding:26px 28px;box-shadow:0 1px 2px rgba(11,31,75,.06),0 8px 30px rgba(11,31,75,.06);
+  .sheet{border:1px solid var(--line);border-radius:var(--radius);padding:24px 30px;
          font-family:'Neucha',cursive;font-size:clamp(20px,2.8vw,28px);line-height:1.7;color:var(--ink);
-         background-image:repeating-linear-gradient(transparent 0 calc(1.7em - 1px), #e6ebf5 calc(1.7em - 1px) 1.7em)}
+         background:#fff repeating-linear-gradient(transparent 0 calc(1.7em - 1px), var(--line) calc(1.7em - 1px) 1.7em) 0 24px/100% calc(100% - 48px) no-repeat}
   .sheet textarea{all:unset;display:block;width:100%;white-space:pre-wrap;min-height:5em}
-  .tips{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:22px}
-  .tip{font-size:15px;color:var(--ink-soft)}
-  .tip b{display:block;color:var(--ink);font-size:15px;margin-bottom:2px}
+  .tips{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:24px;margin-top:36px}
+  .tip{font-size:15px;color:var(--soft)}
+  .tip b{display:block;margin-bottom:4px}
 
-  .drop{border:1.5px dashed #b9c3da;border-radius:var(--radius);padding:44px 20px;text-align:center;background:#fff;cursor:pointer;transition:border-color .2s,background .2s}
-  .drop.over{border-color:var(--ink-2);background:#f2f5fd}
-  .drop p{margin:6px 0 0;color:var(--ink-soft);font-size:15px}
-  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;margin-top:16px}
+  /* зона загрузки: label по умолчанию строчный, без display:block рамка рвётся */
+  .drop{display:block;border:1px dashed var(--faint);border-radius:var(--radius);padding:64px 20px;text-align:center;background:var(--mist);cursor:pointer;transition:border-color .2s,background .2s}
+  .drop:hover,.drop.over{border-color:var(--ink);background:#fff}
+  .drop .t{font-size:19px}
+  .drop p{margin:6px 0 0;color:var(--soft);font-size:15px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;margin-top:18px}
 
-  #scanWrap{margin-top:26px;display:none}
-  #scan{width:100%;height:auto;border-radius:14px;background:#fff;box-shadow:0 1px 2px rgba(11,31,75,.08)}
-  .status{margin-top:14px;font-size:15px;color:var(--ink-soft)}
-  .status.ok{color:var(--ok)} .status.warn{color:var(--warn)}
+  #scanWrap{margin-top:28px;display:none}
+  #scan{width:100%;height:auto;border-radius:16px;background:#fff;border:1px solid var(--line)}
+  .status{margin-top:14px;font-size:15px;color:var(--soft)}
+  .status.ok{color:var(--moss)} .status.warn{color:var(--warn)}
 
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px}
-  .tile{position:relative;aspect-ratio:1;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--line);transition:transform .12s,border-color .2s}
-  .tile:hover{transform:translateY(-1px);border-color:#b9c3da}
+  .tile{position:relative;aspect-ratio:1;background:#fff;border-radius:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--line);transition:transform .12s,border-color .2s}
+  .tile:hover{transform:translateY(-1px);border-color:var(--faint)}
   .tile .g{font-size:34px;line-height:1}
-  .tile .k{position:absolute;left:6px;top:4px;font-size:10px;color:#8c97b3}
-  .tile .n{position:absolute;right:6px;bottom:4px;font-size:10px;color:#8c97b3}
+  .tile .k{position:absolute;left:7px;top:5px;font-size:10px;color:var(--faint)}
+  .tile .n{position:absolute;right:7px;bottom:5px;font-size:10px;color:var(--faint)}
   .tile.auto{border-style:dashed}
-  .tile.miss{background:#fbf3ee;border-color:#f0d6c6}
-  .legend{font-size:13px;color:var(--ink-soft);margin:12px 0 0}
+  .tile.miss{background:#faf3ec;border-color:#efdcc9;cursor:default}
+  .legend{font-size:13px;color:var(--soft);margin:14px 0 0}
 
-  .preview{background:#fff;border-radius:var(--radius);padding:26px 28px;box-shadow:0 1px 2px rgba(11,31,75,.06),0 8px 30px rgba(11,31,75,.06)}
+  .preview{border:1px solid var(--line);border-radius:var(--radius);padding:28px 30px}
   #previewText{all:unset;display:block;width:100%;min-height:3.2em;font-size:56px;line-height:1.15;color:var(--ink);white-space:pre-wrap;word-break:break-word}
-  .controls{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-top:18px;font-size:15px;color:var(--ink-soft)}
-  .controls input[type=text]{font:inherit;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 12px;min-width:200px}
-  .buy{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:22px;padding:22px 26px;border-radius:var(--radius);background:var(--ink);color:#fff}
-  .buy .price{font-size:30px;font-weight:700;letter-spacing:-.02em}
-  .buy small{display:block;color:#b8c4e6;font-size:14px}
-  .buy .btn{background:#fff;color:var(--ink)}
-  .buy .btn:hover{background:#eef2fb}
-  footer{padding:40px 0 60px;color:#8c97b3;font-size:13px;text-align:center;border-top:1px solid var(--line)}
+  .controls{display:flex;gap:22px;align-items:center;flex-wrap:wrap;margin-top:20px;font-size:15px;color:var(--soft)}
+  .controls input[type=text]{font:inherit;color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:9px 12px;min-width:200px}
+  .controls input[type=range]{accent-color:var(--ink)}
+  .buy{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:24px;padding:26px 30px;border-radius:var(--radius);background:var(--mist)}
+  .buy .price{font-family:var(--display);font-style:italic;font-size:52px;line-height:1}
+  .buy small{display:block;color:var(--soft);font-size:14px;margin-top:6px}
+  footer{padding:48px 0 64px;color:var(--faint);font-size:13px;text-align:center}
+
   /* окно правки буквы */
-  .modal{position:fixed;inset:0;z-index:50;background:rgba(11,31,75,.32);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:16px}
-  .ed-card{background:#fff;border-radius:22px;padding:22px 24px;width:100%;max-width:688px;max-height:calc(100vh - 32px);overflow:auto;box-shadow:0 20px 60px rgba(11,31,75,.25)}
-  .ed-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}
-  .ed-title{font-size:24px;font-weight:700;letter-spacing:-.02em}
-  .ed-title span{font-family:var(--userfont,'Neucha'),cursive;font-weight:400;color:var(--ink-2);margin-left:4px}
-  .ed-sub{font-size:14px;color:var(--ink-soft);margin-top:2px}
-  .ed-x{border:0;background:var(--mist);width:32px;height:32px;border-radius:50%;font-size:20px;line-height:1;color:var(--ink);cursor:pointer;flex:none}
-  .ed-stage{background:var(--mist);border-radius:14px;padding:10px;display:flex;justify-content:center}
+  .modal{position:fixed;inset:0;z-index:50;background:rgba(20,22,18,.35);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:16px}
+  .ed-card{background:#fff;border-radius:var(--radius);padding:24px 26px;width:100%;max-width:688px;max-height:calc(100vh - 32px);overflow:auto;box-shadow:0 20px 60px rgba(20,22,18,.25)}
+  .ed-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px}
+  .ed-title{font-family:var(--display);font-style:italic;font-size:34px;line-height:1}
+  .ed-title span{font-family:var(--userfont,'Neucha'),cursive;font-style:normal;margin-left:6px}
+  .ed-sub{font-size:14px;color:var(--soft);margin-top:6px}
+  .ed-x{border:0;background:var(--mist);width:34px;height:34px;border-radius:50%;font-size:20px;line-height:1;color:var(--ink);cursor:pointer;flex:none}
+  .ed-stage{background:var(--mist);border-radius:16px;padding:10px;display:flex;justify-content:center}
   #edCanvas{display:block;cursor:ew-resize;touch-action:none;border-radius:8px;max-width:100%}
-  .ed-hint{font-size:13px;color:var(--ink-soft);margin:10px 0 0}
+  .ed-hint{font-size:13px;color:var(--soft);margin:10px 0 0}
   .ed-row{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:14px;flex-wrap:wrap}
-  .ed-variants{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink-soft)}
+  .ed-variants{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--soft)}
   .ed-variants button{border:1px solid var(--line);background:#fff;width:34px;height:34px;border-radius:50%;font-size:18px;color:var(--ink);cursor:pointer}
   .ed-variants button[disabled]{opacity:.35;cursor:default}
   #edGlyph{border:1px solid var(--line);border-radius:12px}
-  .ed-actions{display:flex;justify-content:flex-end;gap:6px;flex-wrap:wrap;margin-top:16px}
+  .ed-actions{display:flex;justify-content:flex-end;gap:6px;flex-wrap:wrap;margin-top:18px}
   .ed-actions .btn{font-size:15px;padding:10px 20px}
   .ed-actions .btn.ghost{padding:10px 12px}
-  @media (max-width:600px){ .modal{align-items:flex-end;padding:0} .ed-card{border-radius:22px 22px 0 0;max-height:92vh;padding:18px 16px} }
+
   .hidden{display:none!important}
-  @media (max-width:600px){ .hero{padding:64px 0 36px} section.step{padding:52px 0} #previewText{font-size:40px} .card{padding:18px} .sheet{padding:18px} }
+  @media (max-width:600px){
+    nav{top:12px;left:12px;right:12px} .pill{height:52px;padding-left:20px} .logo{font-size:24px}
+    section.step{padding-top:88px} section.step:last-of-type{padding-bottom:88px}
+    #previewText{font-size:40px} .card,.preview,.buy{padding:20px} .sheet{padding:18px 20px}
+    .modal{align-items:flex-end;padding:0} .ed-card{border-radius:22px 22px 0 0;max-height:92vh;padding:20px 16px}
+  }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/opentype.js/1.3.4/opentype.min.js"></script>
 </head>
 <body>
-<nav><div class="wrap">
-  <div class="logo">ink<i>self</i></div>
-  <a class="small" href="#write">Создать шрифт</a>
+<nav id="nav"><div class="pill">
+  <a class="logo" href="#top">inkself</a>
+  <a class="go" href="#write">Создать шрифт</a>
 </div></nav>
 
-<header class="hero wrap">
-  <div class="eyebrow">Без шаблонов. Без таблиц. Без Illustrator.</div>
-  <h1>Твой почерк.<br><span class="hand">Твой шрифт.</span></h1>
-  <p class="lead">Напиши три строчки от руки, сфотографируй — и через минуту получи настоящий шрифт .otf для Canva, Figma, Procreate и Word.</p>
-  <a href="#write"><button class="btn">Начать — это бесплатно</button></a>
-  <button class="btn ghost" id="demoTop">Посмотреть демо →</button>
+<header class="hero" id="top">
+  <h1>Your handwriting,<br><span class="hand">your font.</span></h1>
+  <p class="lead">Три строчки от руки и одно фото — через минуту у тебя настоящий шрифт .otf.</p>
+  <div class="ask">
+    <p>Без шаблонов и таблиц. Всё считается в браузере: твой почерк никуда не уходит.</p>
+    <div class="bar">
+      <span class="apps">Canva · Figma · Procreate · Word</span>
+      <a class="round" href="#write" aria-label="Начать">↓</a>
+    </div>
+  </div>
+  <button class="demo" id="demoTop">или посмотреть на демо-почерке</button>
 </header>
 
 <section class="step" id="write"><div class="wrap">
-  <div class="num">1</div>
-  <h2>Перепиши эти строки на бумаге.</h2>
-  <p class="sub">Обычной ручкой, печатными буквами. Последняя строка — заглавными: так мы получим и большие, и маленькие буквы.</p>
+  <div class="num">01</div>
+  <h2>Перепиши строки на бумаге</h2>
+  <p class="sub">Обычной ручкой, печатными буквами. Последняя строка — заглавными: так получатся и большие, и маленькие буквы.</p>
   <div class="seg" id="scriptSeg">
     <button data-s="latin" class="on">Latin</button>
     <button data-s="cyrillic">Кириллица</button>
@@ -142,20 +184,20 @@
   </div>
   <div class="sheet"><textarea id="expected" spellcheck="false" readonly></textarea></div>
   <div class="tips">
-    <div class="tip"><b>Буквы не касаются</b>Оставляй между ними маленький зазор — без слитного письма.</div>
+    <div class="tip"><b>Буквы не касаются</b>Небольшой зазор между буквами, без слитного письма.</div>
     <div class="tip"><b>Тёмная ручка</b>Гелевая или линер. Карандаш распознаётся хуже.</div>
-    <div class="tip"><b>Ровный свет</b>Фото сверху, без тени от телефона. Лист целиком.</div>
-    <div class="tip"><b>Перенос строк — можно</b>Пиши в своём размере, мы сами найдём строки.</div>
+    <div class="tip"><b>Ровный свет</b>Снимай сверху, без тени от телефона, лист целиком.</div>
+    <div class="tip"><b>Переносы — можно</b>Пиши в своём размере, строки мы найдём сами.</div>
   </div>
 </div></section>
 
 <section class="step" id="upload"><div class="wrap">
-  <div class="num">2</div>
-  <h2>Загрузи фото.</h2>
+  <div class="num">02</div>
+  <h2>Загрузи фото</h2>
   <p class="sub">Обработка идёт прямо в браузере — твой почерк никуда не уходит.</p>
   <label class="drop" id="drop">
     <input type="file" id="file" accept="image/*" hidden>
-    <div style="font-size:19px;font-weight:600">Перетащи фото сюда</div>
+    <div class="t">Перетащи фото сюда</div>
     <p>или нажми, чтобы выбрать · JPG, PNG, HEIC-скриншот</p>
   </label>
   <div class="row"><button class="btn ghost" id="demoBtn">Нет листа под рукой? Сгенерировать демо-почерк</button></div>
@@ -166,20 +208,20 @@
 </div></section>
 
 <section class="step hidden" id="review"><div class="wrap">
-  <div class="num">3</div>
-  <h2>Проверь буквы.</h2>
+  <div class="num">03</div>
+  <h2>Проверь буквы</h2>
   <p class="sub">Нажми на букву: увидишь, где мы её нашли на фото, и сможешь подвинуть границы или выбрать другой вариант.</p>
   <div class="card"><div class="grid" id="grid"></div>
-    <p class="legend">Пунктир — буква достроена автоматически (например, заглавная из строчной). Оранжевый — не нашли, будет системный шрифт.</p>
+    <p class="legend">Пунктир — буква достроена автоматически (например, заглавная из строчной). Бежевый — не нашли, будет системный шрифт.</p>
   </div>
 </div></section>
 
 <section class="step hidden" id="result"><div class="wrap">
-  <div class="num">4</div>
-  <h2>Готово. Попробуй.</h2>
+  <div class="num">04</div>
+  <h2>Готово. Попробуй</h2>
   <p class="sub">Печатай ниже — это уже твой шрифт.</p>
   <div class="preview">
-    <div id="previewText" contenteditable="true" spellcheck="false">Hello! Это мой почерк.</div>
+    <div id="previewText" contenteditable="true" spellcheck="false">Hello, world! This is my handwriting.</div>
   </div>
   <div class="controls">
     <label>Название <input type="text" id="fontName" value="My Handwriting"></label>
@@ -187,7 +229,7 @@
     <label>Межбуквенный <input type="range" id="track" min="-40" max="120" value="0"></label>
   </div>
   <div class="buy">
-    <div><div class="price">$7</div><small>Один раз за шрифт · .otf + .woff2-ready · личное и коммерческое использование</small></div>
+    <div><div class="price">$7</div><small>Один раз за шрифт · .otf · личное и коммерческое использование</small></div>
     <button class="btn" id="buyBtn">Скачать шрифт</button>
   </div>
 </div></section>
@@ -199,7 +241,7 @@
       <button class="ed-x" id="edClose" aria-label="Закрыть">×</button>
     </div>
     <div class="ed-stage"><canvas id="edCanvas"></canvas></div>
-    <p class="ed-hint">Тяни синие ручки, чтобы сдвинуть границы. Тёмным — то, что попадёт в шрифт, серым — соседние буквы.</p>
+    <p class="ed-hint">Тяни ручки, чтобы сдвинуть границы. Тёмным — то, что попадёт в шрифт, серым — соседние буквы.</p>
     <div class="ed-row">
       <div class="ed-variants"><button id="edPrev" aria-label="Предыдущий вариант">‹</button><span id="edVar"></span><button id="edNext" aria-label="Следующий вариант">›</button></div>
       <canvas id="edGlyph" aria-label="Превью буквы"></canvas>
@@ -212,10 +254,16 @@
   </div>
 </div>
 
-<footer>inkself · MVP · всё считается локально в браузере</footer>
+<footer>inkself · всё считается локально в браузере · шрифты сайта: Britney и Quicksand с Fontshare</footer>
 
 <script src="pipeline.js"></script>
 <script src="app.js"></script>
 <script src="editor.js"></script>
+<script>
+  // капсула навигации становится светлой, когда первый экран ушёл вверх
+  const nav = document.getElementById('nav');
+  new IntersectionObserver(([e]) => nav.classList.toggle('solid', !e.isIntersecting), { rootMargin: '-80px 0px 0px 0px' })
+    .observe(document.getElementById('top'));
+</script>
 </body>
 </html>
