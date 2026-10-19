@@ -55,10 +55,22 @@ fileIn.onchange = () => fileIn.files[0] && loadFile(fileIn.files[0]);
 ['dragenter', 'dragover'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add('over'); }));
 ['dragleave', 'drop'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove('over'); }));
 drop.addEventListener('drop', ev => ev.dataTransfer.files[0] && loadFile(ev.dataTransfer.files[0]));
-$('#demoBtn').onclick = runDemo;
-$('#demoTop').onclick = () => { document.querySelector('#upload').scrollIntoView({ behavior: 'smooth' }); runDemo(); };
+$('#demoBtn').onclick = () => runDemo({ tour: true });
+$('#demoTop').onclick = () => runDemo({ tour: true });
+// из демо — сразу к выбору своего фото (вызов в том же клике, иначе Safari не откроет окно выбора)
+$('#demoCtaBtn').onclick = () => { $('#upload').scrollIntoView({ behavior: 'smooth' }); fileIn.click(); };
+
+// режим демо: метка «Демо-лист», вместо покупки — «Загрузить своё фото»
+function setDemo(on) {
+  state.demo = on;
+  $('#demoChip').classList.toggle('hidden', !on);
+  $('#demoCta').classList.toggle('hidden', !on);
+  $('#buy').classList.toggle('hidden', on);
+  const sub = $('#result .sub'); sub.dataset.i18n = on ? 's4subDemo' : 's4sub'; sub.textContent = t(sub.dataset.i18n);
+}
 
 function loadFile(f) {
+  setDemo(false); clearInterval(typing);
   const img = new Image();
   img.onload = () => process(img);
   img.onerror = () => setStatus('stOpenFail', 'warn');
@@ -72,7 +84,9 @@ function setStatus(key, cls = '', vars = {}) {
 }
 
 /* Демо: рисуем «почерк» рукописным шрифтом с дрожанием, как будто фото листа */
-async function runDemo() {
+async function runDemo({ tour = false } = {}) {
+  setDemo(true); clearInterval(typing);
+  if (tour) $('#upload').scrollIntoView({ behavior: 'smooth' });
   setStatus('stDemo');
   await document.fonts.load('64px Neucha');
   const lines = expectedText().split('\n').filter(l => l.trim());
@@ -106,7 +120,25 @@ async function runDemo() {
       x += w + size * 0.1;
     }
   });
-  const img = new Image(); img.onload = () => process(img); img.src = c.toDataURL('image/png');
+  const img = new Image(); img.src = c.toDataURL('image/png'); await img.decode();
+  await process(img);
+  if (tour) await demoTour();
+}
+
+/* Показ демо: дать рассмотреть найденные буквы, затем перейти к результату и напечатать фразу этим шрифтом */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let typing;
+async function demoTour() {
+  await sleep(1600);
+  $('#result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  await sleep(800);
+  // фраза на том же алфавите, что и демо-лист, иначе часть букв будет системным шрифтом
+  const cyr = state.script === 'cyrillic' || (state.script === 'both' && LANG === 'ru');
+  typeInto(preview, cyr ? 'Этот шрифт сделан из демо-листа выше.' : 'This font was made from the demo sheet above.');
+}
+function typeInto(el, text) {
+  clearInterval(typing); el.value = ''; let i = 0;
+  typing = setInterval(() => { el.value = text.slice(0, ++i); fitPreview(); if (i >= text.length) clearInterval(typing); }, 45);
 }
 function measure(ctx, t) { return [...t].reduce((s, ch) => s + ctx.measureText(ch).width + 6.6, 0); }
 
@@ -285,6 +317,7 @@ function renderGrid(fam) {
 const preview = $('#previewText');
 function fitPreview() { preview.style.height = 'auto'; preview.style.height = preview.scrollHeight + 'px'; }
 preview.addEventListener('input', fitPreview);
+preview.addEventListener('focus', () => clearInterval(typing));
 $('.preview').addEventListener('mousedown', e => { if (e.target !== preview) { e.preventDefault(); preview.focus(); preview.setSelectionRange(preview.value.length, preview.value.length); } });
 $('#size').oninput = e => { preview.style.fontSize = e.target.value + 'px'; fitPreview(); };
 $('#track').oninput = e => { preview.style.letterSpacing = (e.target.value / 1000) + 'em'; fitPreview(); };

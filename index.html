@@ -57,13 +57,12 @@
   h1{font-family:var(--display);font-weight:600;font-size:clamp(52px,9.5vw,120px);line-height:.98;letter-spacing:-.035em;margin:0 0 34px}
   h1 .hand{font-family:var(--userfont,var(--display))}
   .lead{font-size:clamp(17px,2vw,20px);max-width:520px;margin:0 auto 34px;opacity:.92}
-  .ask{width:100%;max-width:580px;background:rgba(255,255,255,.9);color:var(--ink);border-radius:var(--radius);padding:20px 20px 16px 24px;text-align:left;
-       backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 20px 60px rgba(14,18,10,.25)}
-  .ask .bar{display:flex;align-items:center;justify-content:space-between;gap:12px}
-  .ask .apps{font-size:14px;color:var(--soft)}
-  .round{flex:none;width:46px;height:46px;border-radius:50%;border:0;background:var(--ink);color:#fff;font-size:20px;display:grid;place-items:center;text-decoration:none;cursor:pointer;transition:transform .15s}
-  .round:hover{transform:translateY(-1px)}
-  .hero .demo{margin-top:20px;background:none;border:0;color:#fff;font:inherit;font-size:15px;opacity:.9;cursor:pointer;text-decoration:underline;text-underline-offset:4px}
+  /* стеклянная круглая кнопка вниз */
+  .glass-down{width:68px;height:68px;border-radius:50%;display:grid;place-items:center;color:#fff;text-decoration:none;
+       background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.35);backdrop-filter:blur(16px) saturate(140%);-webkit-backdrop-filter:blur(16px) saturate(140%);
+       box-shadow:0 10px 40px rgba(14,18,10,.2);transition:background .2s,transform .2s}
+  .glass-down:hover{background:rgba(255,255,255,.24);transform:translateY(2px)}
+  .hero .demo{margin-top:22px;background:none;border:0;color:#fff;font:inherit;font-size:15px;opacity:.9;cursor:pointer;text-decoration:underline;text-underline-offset:4px}
 
   /* кнопки */
   .btn{appearance:none;border:0;border-radius:999px;background:var(--ink);color:#fff;font:inherit;font-size:16px;padding:13px 26px;cursor:pointer;transition:transform .15s,opacity .2s}
@@ -75,7 +74,12 @@
   /* шаги */
   section.step{padding:128px 0 0}
   section.step:last-of-type{padding-bottom:128px}
-  .num{font-size:14px;color:var(--faint);letter-spacing:.08em;margin-bottom:16px}
+  /* номер шага — огромная светлая цифра в углу блока, за содержимым */
+  section.step .wrap{position:relative}
+  section.step .wrap>*:not(.num){position:relative;z-index:1}
+  section.step .num{position:relative;z-index:0}
+  .num{display:block;text-align:right;font-family:var(--display);font-weight:600;font-size:clamp(140px,22vw,300px);line-height:.74;
+       letter-spacing:-.06em;color:#e7e7df;margin:0 -.03em -.16em 0;pointer-events:none;user-select:none}
   h2{font-family:var(--display);font-weight:600;font-size:clamp(38px,5.8vw,68px);line-height:1.02;letter-spacing:-.03em;margin:0 0 18px}
   .sub{color:var(--soft);font-size:18px;max-width:560px;margin:0 0 40px}
 
@@ -100,6 +104,9 @@
   .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;margin-top:18px}
 
   #scanWrap{margin-top:28px;display:none}
+  .scanbox{position:relative}
+  .chip{display:inline-block;margin:0 0 10px;padding:6px 12px;border-radius:999px;background:var(--ink);color:#fff;font-size:13px}
+  .demo-cta{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:24px;padding:22px 26px;border-radius:var(--radius);background:var(--mist);color:var(--soft)}
   #scan{width:100%;height:auto;border-radius:16px;background:#fff;border:1px solid var(--line)}
   .status{margin-top:14px;font-size:15px;color:var(--soft)}
   .status.ok{color:var(--moss)} .status.warn{color:var(--warn)}
@@ -169,17 +176,14 @@
   </nav>
   <h1>Your handwriting,<br><span class="hand">your font.</span></h1>
   <p class="lead" data-i18n="lead"></p>
-  <div class="ask">
-    <div class="bar">
-      <span class="apps">Canva · Figma · Procreate · Word</span>
-      <a class="round" href="#write" data-i18n-aria="startAria">↓</a>
-    </div>
-  </div>
+  <a class="glass-down" href="#write" data-i18n-aria="startAria">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v16M5 13l7 7 7-7"/></svg>
+  </a>
   <button class="demo" id="demoTop" data-i18n="demoTop"></button>
 </header>
 
 <section class="step" id="write"><div class="wrap">
-  <div class="num">01</div>
+  <div class="num" aria-hidden="true">1</div>
   <h2 data-i18n="s1h"></h2>
   <p class="sub" data-i18n="s1sub"></p>
   <div class="seg" id="scriptSeg">
@@ -193,7 +197,7 @@
 </div></section>
 
 <section class="step" id="upload"><div class="wrap">
-  <div class="num">02</div>
+  <div class="num" aria-hidden="true">2</div>
   <h2 data-i18n="s2h"></h2>
   <p class="sub" data-i18n="s2sub"></p>
   <label class="drop" id="drop">
@@ -203,13 +207,13 @@
   </label>
   <div class="row"><button class="btn ghost" id="demoBtn" data-i18n="demoBtn"></button></div>
   <div id="scanWrap">
-    <canvas id="scan"></canvas>
+    <div class="scanbox"><span class="chip hidden" id="demoChip" data-i18n="demoChip"></span><canvas id="scan"></canvas></div>
     <div class="status" id="status"></div>
   </div>
 </div></section>
 
 <section class="step hidden" id="review"><div class="wrap">
-  <div class="num">03</div>
+  <div class="num" aria-hidden="true">3</div>
   <h2 data-i18n="s3h"></h2>
   <p class="sub" data-i18n="s3sub"></p>
   <div class="card"><div class="grid" id="grid"></div>
@@ -218,7 +222,7 @@
 </div></section>
 
 <section class="step hidden" id="result"><div class="wrap">
-  <div class="num">04</div>
+  <div class="num" aria-hidden="true">4</div>
   <h2 data-i18n="s4h"></h2>
   <p class="sub" data-i18n="s4sub"></p>
   <div class="preview">
@@ -229,7 +233,11 @@
     <label><span data-i18n="lblSize"></span> <input type="range" id="size" min="20" max="120" value="56"></label>
     <label><span data-i18n="lblTrack"></span> <input type="range" id="track" min="-40" max="120" value="0"></label>
   </div>
-  <div class="buy">
+  <div class="demo-cta hidden" id="demoCta">
+    <span data-i18n="demoCtaText"></span>
+    <button class="btn" id="demoCtaBtn" data-i18n="demoCtaBtn"></button>
+  </div>
+  <div class="buy" id="buy">
     <div><div class="price">$7</div><small data-i18n="buyNote"></small></div>
     <button class="btn" id="buyBtn" data-i18n="buyBtn"></button>
   </div>
