@@ -54,12 +54,11 @@
   .hero::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,18,10,.55) 0%,rgba(14,18,10,.15) 45%,rgba(14,18,10,.05) 70%,rgba(14,18,10,.25) 100%)}
   .hero>*{position:relative}
   .hero>nav{position:absolute}
-  h1{font-family:var(--display);font-weight:600;font-size:clamp(52px,9.5vw,120px);line-height:.98;letter-spacing:-.035em;margin:0 0 22px}
+  h1{font-family:var(--display);font-weight:600;font-size:clamp(52px,9.5vw,120px);line-height:.98;letter-spacing:-.035em;margin:0 0 34px}
   h1 .hand{font-family:var(--userfont,var(--display))}
   .lead{font-size:clamp(17px,2vw,20px);max-width:520px;margin:0 auto 34px;opacity:.92}
   .ask{width:100%;max-width:580px;background:rgba(255,255,255,.9);color:var(--ink);border-radius:var(--radius);padding:20px 20px 16px 24px;text-align:left;
        backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 20px 60px rgba(14,18,10,.25)}
-  .ask p{margin:0 0 18px;color:var(--soft)}
   .ask .bar{display:flex;align-items:center;justify-content:space-between;gap:12px}
   .ask .apps{font-size:14px;color:var(--soft)}
   .round{flex:none;width:46px;height:46px;border-radius:50%;border:0;background:var(--ink);color:#fff;font-size:20px;display:grid;place-items:center;text-decoration:none;cursor:pointer;transition:transform .15s}
@@ -91,9 +90,7 @@
          background:#fff repeating-linear-gradient(transparent 0 1.24em, var(--line) 1.24em calc(1.24em + 1px), transparent calc(1.24em + 1px) 1.9em) 0 24px/100% calc(100% - 48px) no-repeat}
   /* без all:unset — в Safari он выключает ввод текста */
   .sheet textarea{appearance:none;border:0;outline:none;background:transparent;margin:0;padding:0;font:inherit;color:inherit;resize:none;box-shadow:none;display:block;width:100%;line-height:inherit;white-space:pre-wrap;min-height:5em;overflow:hidden}
-  .tips{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:24px;margin-top:36px}
-  .tip{font-size:15px;color:var(--soft)}
-  .tip b{display:block;margin-bottom:4px}
+  .tips{margin:18px 0 0;font-size:15px;color:var(--soft)}
 
   /* зона загрузки: label по умолчанию строчный, без display:block рамка рвётся */
   .drop{display:block;border:1px dashed var(--faint);border-radius:var(--radius);padding:64px 20px;text-align:center;background:var(--mist);cursor:pointer;transition:border-color .2s,background .2s}
@@ -173,7 +170,6 @@
   <h1>Your handwriting,<br><span class="hand">your font.</span></h1>
   <p class="lead" data-i18n="lead"></p>
   <div class="ask">
-    <p data-i18n="askP"></p>
     <div class="bar">
       <span class="apps">Canva · Figma · Procreate · Word</span>
       <a class="round" href="#write" data-i18n-aria="startAria">↓</a>
@@ -193,12 +189,7 @@
     <button data-s="own" data-i18n="segOwn"></button>
   </div>
   <div class="sheet"><textarea id="expected" spellcheck="false" readonly></textarea></div>
-  <div class="tips">
-    <div class="tip"><b data-i18n="tip1b"></b><span data-i18n="tip1"></span></div>
-    <div class="tip"><b data-i18n="tip2b"></b><span data-i18n="tip2"></span></div>
-    <div class="tip"><b data-i18n="tip3b"></b><span data-i18n="tip3"></span></div>
-    <div class="tip"><b data-i18n="tip4b"></b><span data-i18n="tip4"></span></div>
-  </div>
+  <p class="tips" data-i18n="tips"></p>
 </div></section>
 
 <section class="step" id="upload"><div class="wrap">

@@ -29,7 +29,8 @@ function cw(c) {
   return 0.64;
 }
 
-function analyze(data, W, H, text) {
+/* Поиск пятен и строк — один раз на фото; сопоставление с текстом — отдельно (alignText), чтобы проверить несколько шаблонов */
+function segment(data, W, H) {
   const v = new Float32Array(W * H);
   for (let i = 0; i < W * H; i++) v[i] = Math.min(data[4 * i], data[4 * i + 1], data[4 * i + 2]);
   const { m: mask, d: contrast, hi } = inkMask(v, W, H);
@@ -56,10 +57,33 @@ function analyze(data, W, H, text) {
     L.clusters = clusterLine(L, W);
     for (const word of splitWords(L.clusters, L.medH)) obs.push({ clusters: word, line: li });
   });
-  const { items, total } = alignChars(obs, text, lines, W);
-  computeLineMetrics(lines, items);
-  return { items, lines, total, comps };
+  return { lines, obs, comps };
 }
+
+function analyze(data, W, H, text) {
+  const seg = segment(data, W, H);
+  return seg && alignText(seg, text, W);
+}
+
+function alignText(seg, text, W) {
+  const { items, total, cost } = alignChars(seg.obs, text, seg.lines, W);
+  computeLineMetrics(seg.lines, items);
+  return { items, lines: seg.lines, comps: seg.comps, total, fit: fitScore(items, total, cost) };
+}
+
+/* Насколько текст подходит к фото. Неверный текст всё равно «натягивается» на пятна,
+   но тогда под одной буквой оказываются непохожие друг на друга пятна, и приходится много резать. */
+function fitScore(items, total, cost) {
+  const by = new Map();
+  for (const it of items) (by.get(it.char) || by.set(it.char, []).get(it.char)).push(it.thumb);
+  let sum = 0, pairs = 0;
+  for (const th of by.values()) for (let a = 0; a < th.length; a++) for (let b = a + 1; b < th.length; b++) { sum += thumbDist(th[a], th[b]); pairs++; }
+  const split = items.filter(i => i.split).length / Math.max(1, total);
+  const found = items.length / Math.max(1, total);
+  const unlike = pairs ? sum / pairs : 0.5;
+  return { cost: cost / Math.max(1, total), split, found, unlike, score: unlike + 0.6 * split + 0.08 * cost / Math.max(1, total) + 0.8 * (1 - found) };
+}
+function thumbDist(a, b) { let x = 0, u = 0; for (let i = 0; i < a.length; i++) { x += a[i] !== b[i]; u += a[i] | b[i]; } return u ? x / u : 0; }
 
 /* Маска: пиксель темнее среднего по окрестности на заметную долю от контраста самих чернил */
 function inkMask(v, W, H) {
@@ -357,7 +381,7 @@ function alignChars(obs, text, lines, W) {
       splitCluster(g.cl[0], g.chars, L, W).forEach((px, t) => px.length && items.push(mkItem(g.chars[t], px, g.cl[0].line, 1 + g.cost, true, W)));
     }
   }
-  return { items, total: chars.length };
+  return { items, total: chars.length, cost: res.cost };
 }
 
 function dpChars(cl, chars, sp, lines) {

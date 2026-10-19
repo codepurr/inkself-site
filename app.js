@@ -31,11 +31,12 @@ const state = { script: 'latin', image: null, instances: {}, choice: {}, charset
 /* ---------- Шаг 1: текст-шаблон ---------- */
 const expectedEl = $('#expected');
 function setScript(s) {
+  if (state.script === 'own' && s !== 'own') state.ownText = expectedEl.value;   // чтобы свой текст не пропал при переключении
   state.script = s;
   document.querySelectorAll('#scriptSeg button').forEach(b => b.classList.toggle('on', b.dataset.s === s));
   if (s === 'own') {
     expectedEl.readOnly = false;
-    if (!expectedEl.dataset.own) expectedEl.value = t('ownText');
+    expectedEl.value = expectedEl.dataset.own && state.ownText != null ? state.ownText : expectedEl.dataset.own ? expectedEl.value : t('ownText');
     expectedEl.focus();
   } else {
     expectedEl.readOnly = true;
@@ -121,9 +122,23 @@ async function process(img) {
   const ctx = cv.getContext('2d', { willReadFrequently: true });
   ctx.drawImage(img, 0, 0, W, H);
   const data = ctx.getImageData(0, 0, W, H).data;
-  const chars = [...expectedText().replace(/\s+/g, '')];
-  const res = analyze(data, W, H, expectedText());
-  if (!res || !res.items.length) return setStatus('stNoText', 'warn');
+  const seg = segment(data, W, H);
+  if (!seg) return setStatus('stNoText', 'warn');
+  // Выбранный текст всегда можно «натянуть» на пятна, поэтому сверяем фото со всеми шаблонами
+  // и берём тот, что совпадает лучше (у верного текста экземпляры одной буквы похожи и резать почти не нужно)
+  const cands = ['latin', 'cyrillic', 'both'].map(k => ({ key: k, text: TEMPLATES[k].join('\n') }));
+  if (state.script === 'own') cands.unshift({ key: 'own', text: expectedText() });
+  for (const c of cands) c.fit = alignText(seg, c.text, W).fit;
+  const best = cands.reduce((a, b) => (b.fit.score < a.fit.score ? b : a));
+  let note = '', tpl = '';
+  // свой текст оставляем, если он не хуже шаблонов; если на листе явно шаблон — переключаем на него
+  const keep = state.script === 'own' && (best.key === 'own' || cands[0].fit.score - best.fit.score <= 0.15);
+  const used = keep ? cands[0] : best;
+  if (used.key !== state.script) { note = state.script === 'own' ? 'own' : 'switched'; tpl = used.key; setScript(used.key); }
+  const res = alignText(seg, used.text, W);   // заново: разметка строк должна соответствовать выбранному тексту
+  if (!res.items.length) return setStatus('stNoText', 'warn');
+  if (!note && res.fit.score > 1.15) note = 'poor';
+  const chars = [...used.text.replace(/\s+/g, '')];
   state.analysis = res; state.W = W;
   // чистая копия фото — для окна правки (на #scan рисуются рамки)
   state.photo = document.createElement('canvas'); state.photo.width = W; state.photo.height = H;
@@ -141,7 +156,7 @@ async function process(img) {
   const found = res.items.length, ratio = found / res.total;
   const cut = res.items.filter(i => i.split).length;
   const low = ratio < 0.85;
-  setStatus('stFound', low ? 'warn' : 'ok', { found, total: res.total, kinds: Object.keys(state.instances).length, cut, low });
+  setStatus('stFound', low || note === 'poor' ? 'warn' : 'ok', { found, total: res.total, kinds: Object.keys(state.instances).length, cut, low, note, tpl });
 
   buildCharset(chars);
   rebuild();
