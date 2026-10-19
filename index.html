@@ -86,8 +86,9 @@
 
   .card{background:var(--mist);border-radius:var(--radius);padding:28px}
   .sheet{border:1px solid var(--line);border-radius:var(--radius);padding:24px 30px;
-         font-family:'Neucha',cursive;font-size:clamp(20px,2.8vw,28px);line-height:1.7;color:var(--ink);
-         background:#fff repeating-linear-gradient(transparent 0 calc(1.7em - 1px), var(--line) calc(1.7em - 1px) 1.7em) 0 24px/100% calc(100% - 48px) no-repeat}
+         font-family:'Neucha',cursive;font-size:clamp(20px,2.8vw,28px);line-height:1.9;color:var(--ink);
+         /* линовка как в тетради: линия под буквами (линия строки Neucha ≈ 1.19em от верха строки), над заглавными — воздух */
+         background:#fff repeating-linear-gradient(transparent 0 1.24em, var(--line) 1.24em calc(1.24em + 1px), transparent calc(1.24em + 1px) 1.9em) 0 24px/100% calc(100% - 48px) no-repeat}
   /* без all:unset — в Safari он выключает ввод текста */
   .sheet textarea{appearance:none;border:0;outline:none;background:transparent;margin:0;padding:0;font:inherit;color:inherit;resize:none;box-shadow:none;display:block;width:100%;line-height:inherit;white-space:pre-wrap;min-height:5em;overflow:hidden}
   .tips{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:24px;margin-top:36px}
