@@ -173,9 +173,25 @@ function glyphSource(ch) {
   return null;
 }
 
+// горизонтальный размах контура в полосе 0…top (точки на рёбрах берём с шагом, чтобы не пропустить длинные отрезки)
+function bodyRange(rings, sc, top) {
+  let lo = 1e9, hi = -1e9;
+  for (const r of rings) for (let i = 0; i < r.length; i++) {
+    const [x1, y1] = r[i], [x2, y2] = r[(i + 1) % r.length];
+    const steps = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1) * sc / 12));
+    for (let t = 0; t <= steps; t++) {
+      const x = (x1 + (x2 - x1) * t / steps) * sc, y = (y1 + (y2 - y1) * t / steps) * sc;
+      if (y >= -0.04 * top && y <= 1.06 * top) { if (x < lo) lo = x; if (x > hi) hi = x; }
+    }
+  }
+  return hi - lo > 40 ? [lo, hi] : null;
+}
+
 function makeGlyph(ch, src) {
   const pts = src.rings.flat().map(([x, y]) => [x * src.sc, y * src.sc]);
-  const minX = Math.min(...pts.map(p => p[0])), maxX = Math.max(...pts.map(p => p[0]));
+  // края и центр буквы считаем по её «телу» — от линии строки до высоты строчных (у заглавных — до их высоты).
+  // Хвосты и крючки (y, g, j, f) могут заходить под соседей, как в настоящем почерке, и не раздвигают строку.
+  const [minX, maxX] = bodyRange(src.rings, src.sc, isUpper(ch) ? CH : XH) || [Math.min(...pts.map(p => p[0])), Math.max(...pts.map(p => p[0]))];
   const sb = PUNCT.has(ch) ? 34 : 46, dx = sb - minX;
   const path = new opentype.Path();
   for (const r of src.rings) {
@@ -216,6 +232,23 @@ function rebuild() {
   });
 }
 
+// плитка: буква из готового шрифта на общей линии строки + линия высоты строчных и края буквы (ширина знака)
+function drawTile(cv, ch) {
+  const g = state.font.charToGlyph(ch), S = 96, dpr = window.devicePixelRatio || 1;
+  cv.width = cv.height = S * dpr;   // размер на экране задаёт CSS (на всю плитку)
+  const x = cv.getContext('2d'); x.scale(dpr, dpr);
+  const top = 1080, bot = -620, k = (S - 8) / (top - bot), base = 4 + top * k;
+  const adv = g.advanceWidth * k, ox = (S - adv) / 2;
+  x.lineWidth = 1;
+  x.strokeStyle = 'rgba(63,90,44,.45)'; x.beginPath(); x.moveTo(0, Math.round(base) + .5); x.lineTo(S, Math.round(base) + .5); x.stroke();
+  x.strokeStyle = 'rgba(27,29,24,.12)'; x.setLineDash([2, 3]);
+  const xh = Math.round(base - (isUpper(ch) ? CH : XH) * k) + .5;
+  x.beginPath(); x.moveTo(0, xh); x.lineTo(S, xh); x.stroke();
+  x.beginPath(); x.moveTo(Math.round(ox) + .5, 0); x.lineTo(Math.round(ox) + .5, S); x.moveTo(Math.round(ox + adv) - .5, 0); x.lineTo(Math.round(ox + adv) - .5, S); x.stroke();
+  x.setLineDash([]);
+  const path = g.getPath(ox, base, UPM * k); path.fill = '#1b1d18'; path.draw(x);
+}
+
 function renderGrid(fam) {
   const grid = $('#grid'); grid.innerHTML = '';
   for (const ch of state.charset) {
@@ -223,7 +256,8 @@ function renderGrid(fam) {
     tile.className = 'tile' + (!src ? ' miss' : src.auto ? ' auto' : '');
     tile.innerHTML = `<span class="k"></span><span class="g"></span><span class="n"></span>`;
     tile.querySelector('.k').textContent = ch;
-    const g = tile.querySelector('.g'); g.textContent = ch; g.style.fontFamily = src ? `'${fam}'` : '-apple-system, sans-serif';
+    if (src) { const cv = document.createElement('canvas'); cv.className = 'gc'; tile.querySelector('.g').replaceWith(cv); drawTile(cv, ch); }
+    else tile.querySelector('.g').textContent = ch;
     if (src && src.count > 1) tile.querySelector('.n').textContent = `${(state.choice[ch] % src.count) + 1}/${src.count}`;
     if (src) tile.onclick = () => openEditor(src.from, ch);
     else tile.title = t('missingTile');

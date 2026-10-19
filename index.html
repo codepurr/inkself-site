@@ -40,7 +40,7 @@
   nav{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:26px clamp(20px,4vw,44px);color:#fff}
   /* логотип — надпись от руки, белая, с живыми краями чернил */
   .logo{display:block;line-height:0}
-  .logo img{height:clamp(64px,7vw,90px);width:auto;filter:drop-shadow(0 1px 10px rgba(14,18,10,.3))}
+  .logo img{width:clamp(90px,8vw,112px);height:auto;filter:drop-shadow(0 1px 10px rgba(14,18,10,.3))}
   .nav-r{display:flex;align-items:center;gap:18px}
   .lang{border:0;background:none;color:#fff;font:inherit;font-size:15px;letter-spacing:.06em;cursor:pointer;opacity:.85;padding:6px 2px}
   .lang:hover{opacity:1}
@@ -110,6 +110,7 @@
   .tile{position:relative;aspect-ratio:1;background:#fff;border-radius:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--line);transition:transform .12s,border-color .2s}
   .tile:hover{transform:translateY(-1px);border-color:var(--faint)}
   .tile .g{font-size:34px;line-height:1}
+  .tile .gc{position:absolute;inset:0;width:100%;height:100%;border-radius:inherit}
   .tile .k{position:absolute;left:7px;top:5px;font-size:10px;color:var(--faint)}
   .tile .n{position:absolute;right:7px;bottom:5px;font-size:10px;color:var(--faint)}
   .tile.auto{border-style:dashed}
@@ -118,7 +119,8 @@
 
   .preview{border:1px solid var(--line);border-radius:var(--radius);padding:28px 30px}
   .preview{cursor:text}
-  #previewText{appearance:none;border:0;outline:none;background:transparent;margin:0;padding:0;font:inherit;color:inherit;resize:none;box-shadow:none;display:block;width:100%;min-height:2.4em;font-size:56px;line-height:1.15;color:var(--ink);overflow:hidden;word-break:break-word}
+  /* запас сверху и снизу: у рукописных букв крючки и хвосты выходят за строку */
+  #previewText{appearance:none;border:0;outline:none;background:transparent;margin:0;padding:0;font:inherit;color:inherit;resize:none;box-shadow:none;display:block;width:100%;min-height:2.4em;font-size:56px;line-height:1.5;padding:.35em 0 .3em;color:var(--ink);overflow:hidden;word-break:break-word}
   .controls{display:flex;gap:22px;align-items:center;flex-wrap:wrap;margin-top:20px;font-size:15px;color:var(--soft)}
   .controls input[type=text]{font:inherit;color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:9px 12px;min-width:200px}
   .controls input[type=range]{accent-color:var(--ink)}
