@@ -261,6 +261,24 @@ function buildLines(comps, medH, W) {
       A.big.push(...B.big); fit(A); lines = lines.filter(x => x !== B); merged = true;
     }
   }
+  // черта «!» или «?», вынесенная высоко над строкой, получается отдельной «строкой» из одного пятна.
+  // Если прямо под ней стоит точка, а точка ближе к соседней строке — переносим черту в ту строку
+  for (const S of [...lines]) {
+    if (S.big.length > 2) continue;
+    for (const c of [...S.big]) {
+      const dot = small.find(d => d.x1 > c.x0 - 0.3 * c.w && d.x0 < c.x1 + 0.3 * c.w && d.y0 >= c.y1 - 0.1 * medH && d.y0 - c.y1 < 1.0 * medH);
+      if (!dot) continue;
+      let host = null, hd = 1e9;
+      for (const b of big) {
+        if (b._line === S) continue;
+        const dx = Math.max(0, b.x0 - dot.x1, dot.x0 - b.x1), dy = Math.max(0, b.y0 - dot.y1, dot.y0 - b.y1), d = dx + 1.5 * dy;
+        if (d < hd) { hd = d; host = b._line; }
+      }
+      if (!host || hd > 2.5 * medH) continue;
+      S.big = S.big.filter(k => k !== c); host.big.push(c); fit(host);
+    }
+    if (!S.big.length) lines = lines.filter(x => x !== S); else fit(S);
+  }
   for (const s of small) {
     let best = null, bd = 1e9;
     for (const b of big) {
