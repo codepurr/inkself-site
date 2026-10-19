@@ -32,8 +32,10 @@ function cw(c) {
 function analyze(data, W, H, text) {
   const v = new Float32Array(W * H);
   for (let i = 0; i < W * H; i++) v[i] = Math.min(data[4 * i], data[4 * i + 1], data[4 * i + 2]);
-  const mask = inkMask(v, W, H);
+  const { m: mask, d: contrast, hi } = inkMask(v, W, H);
   let comps = components(mask, W, H);
+  // сила чернил пятна: средний контраст его пикселей с окрестностью
+  for (const c of comps) { let s = 0, n = 0; for (let i = 0; i < c.px.length; i += 3) { s += contrast[c.px[i]]; n++; } c.ink = s / n / hi; }
   const minArea = Math.max(6, Math.round(W * H * 0.000004));
   // у края кадра выкидываем только крупное (тени, край листа, предметы): буква может касаться края
   const edge = c => c.x0 <= 1 || c.y0 <= 1 || c.x1 >= W - 2 || c.y1 >= H - 2;
@@ -42,6 +44,9 @@ function analyze(data, W, H, text) {
   let medH = pct(comps.filter(c => c.area >= 3 * minArea).map(c => c.h), 0.6);
   // край листа, линейки, крупные рисунки
   comps = comps.filter(c => !(c.h > 4.5 * medH) && !(c.h > 2 * medH && c.h > 9 * c.w) && !(c.w > 2 * medH && c.w > 12 * c.h));
+  // тени, край страниц, цветные предметы светлее настоящих чернил: отсекаем пятна слабее 75% от типичных
+  const medInk = median(comps.filter(c => c.area >= 3 * minArea).map(c => c.ink));
+  comps = comps.filter(c => c.ink >= 0.75 * medInk);
   comps = textBlock(comps, medH);
   medH = pct(comps.filter(c => c.area >= 3 * minArea).map(c => c.h), 0.6);
   const lines = buildLines(comps, medH, W);
@@ -53,7 +58,7 @@ function analyze(data, W, H, text) {
   });
   const { items, total } = alignChars(obs, text, lines, W);
   computeLineMetrics(lines, items);
-  return { items, lines, total };
+  return { items, lines, total, comps };
 }
 
 /* Маска: пиксель темнее среднего по окрестности на заметную долю от контраста самих чернил */
@@ -81,7 +86,7 @@ function inkMask(v, W, H) {
   const thr = Math.max(18, 0.38 * hi);
   const m = new Uint8Array(W * H);
   for (let i = 0; i < W * H; i++) if (d[i] > thr) m[i] = 1;
-  return m;
+  return { m, d, hi };
 }
 
 function components(m, W, H) {
@@ -219,6 +224,19 @@ function buildLines(comps, medH, W) {
     }
     if (best) { best.big.push(...S.big); fit(best); lines = lines.filter(x => x !== S); }
   }
+  // высота строки рядом с точкой x: середина «сердцевины» трёх ближайших букв (без выносных и без продления наклона)
+  const localCy = (L, x) => median([...L.big].sort((a, b) => Math.abs(a.cx - x) - Math.abs(b.cx - x)).slice(0, 3).map(c => (c.core0 + c.core1) / 2));
+  // куски одной строки, разорванные большим пробелом (стёртое слово, широкий отступ), склеиваем,
+  // если на стыке они стоят на одной высоте
+  for (let merged = true; merged;) {
+    merged = false;
+    lines.sort((a, b) => a.x0 - b.x0);
+    for (const A of lines) for (const B of lines) {
+      if (A === B || merged || B.x0 < A.x1 - 0.3 * medH || B.x0 - A.x1 > 10 * medH) continue;
+      if (Math.abs(localCy(A, A.x1) - localCy(B, B.x0)) > 0.4 * medH) continue;
+      A.big.push(...B.big); fit(A); lines = lines.filter(x => x !== B); merged = true;
+    }
+  }
   for (const s of small) {
     let best = null, bd = 1e9;
     for (const b of big) {
@@ -233,8 +251,8 @@ function buildLines(comps, medH, W) {
     const keep = L.big.filter(c => c.h <= 2.6 * L.medH);
     if (keep.length) L.big = keep;
   }
-  // порядок строк: сравниваем средние линии там, где строки ближе всего по горизонтали
-  return lines.sort((a, b) => { const xm = (Math.max(a.x0, b.x0) + Math.min(a.x1, b.x1)) / 2; return a.centerAt(xm) - b.centerAt(xm); });
+  // порядок строк: сравниваем высоту букв там, где строки ближе всего по горизонтали
+  return lines.sort((a, b) => { const xm = (Math.max(a.x0, b.x0) + Math.min(a.x1, b.x1)) / 2; return localCy(a, xm) - localCy(b, xm); });
 }
 
 /* Наклон почерка: угол сдвига, при котором вертикальная проекция самая «острая» */
