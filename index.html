@@ -56,9 +56,9 @@
   .hero>nav{position:absolute}
   /* дудлы на фото: позиции в долях экрана, за текстом, не перехватывают нажатия; штриховка уходит за правый край */
   .hero>.doodle{position:absolute;z-index:0;height:auto;pointer-events:none;user-select:none;filter:drop-shadow(0 1px 8px rgba(14,18,10,.25))}
-  .d-blot{width:clamp(42px,4.6vw,76px);left:71%;top:15%}
-  .d-hatch{width:clamp(34px,3.6vw,60px);right:-14px;top:20%}
-  .d-flower{width:clamp(34px,3.8vw,62px);left:8.5%;top:45%}
+  .d-blot{width:clamp(21px,2.3vw,38px);left:71%;top:15%}
+  .d-hatch{width:clamp(17px,1.8vw,30px);right:-7px;top:20%}
+  .d-flower{width:clamp(17px,1.9vw,31px);left:8.5%;top:45%}
   /* размер заголовка зависит и от ширины, и от высоты окна — весь первый экран помещается без прокрутки */
   h1{font-family:var(--display);font-weight:600;font-size:clamp(40px,min(7.4vw,11svh),108px);line-height:.98;letter-spacing:-.035em;margin:0 0 22px}
   /* «your font» — от руки: высота строчных совпадает с набранной строкой, петли y и f выходят за строку, не раздвигая заголовок */
@@ -87,10 +87,10 @@
   section.step .num{position:relative;z-index:0}
   section.step{overflow-x:clip}
   /* чёрные капли у нижнего левого угла цифры «2» — поверх, как брызги чернил */
-  .num .drops-ink{position:absolute;right:.13em;bottom:-.06em;width:.52em;aspect-ratio:1;background:var(--ink);
+  .num .drops-ink{position:absolute;right:.39em;bottom:-.06em;width:.26em;aspect-ratio:1;background:var(--ink);
        -webkit-mask:url('assets/doodles/drops-mask.png') center/contain no-repeat;mask:url('assets/doodles/drops-mask.png') center/contain no-repeat}
-  /* чёрный завиток от руки под заголовком шага 1: от левого края экрана до середины заголовка, под текстом */
-  .scribble-ink{position:absolute;z-index:-1;--edge:max(24px,(100vw - 1040px) / 2 + 24px);left:calc(-1 * var(--edge));top:-.12em;width:calc(var(--edge) + 3.5em);aspect-ratio:425/200;
+  /* чёрный завиток от руки под заголовком шага 1: вдвое меньше прежнего, кончается там же, под текстом */
+  .scribble-ink{position:absolute;z-index:-1;--edge:max(24px,(100vw - 1040px) / 2 + 24px);--w:calc((var(--edge) + 3.5em) / 2);left:calc(3.5em - var(--w));top:calc(-.12em + var(--w) * 100 / 425);width:var(--w);aspect-ratio:425/200;
        background:var(--ink);-webkit-mask:url('assets/doodles/squiggle-mask.png') center/contain no-repeat;mask:url('assets/doodles/squiggle-mask.png') center/contain no-repeat;pointer-events:none}
   .num{display:block;text-align:right;font-family:var(--display);font-weight:600;font-size:clamp(140px,22vw,300px);line-height:.74;
        letter-spacing:-.06em;color:var(--ink);margin:0 -.03em .1em 0;pointer-events:none;user-select:none}
