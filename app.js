@@ -97,7 +97,10 @@ async function runDemo({ tour = false } = {}) {
   setScript('latin');
   setStatus('stDemo');
   const url = 'assets/demo-sheet.jpg', prevFam = state.previewFamily;
-  const img = new Image(); img.src = url; await img.decode();
+  // событие load, а не img.decode(): decode ждёт кадра отрисовки и в фоновой вкладке может не завершиться
+  const img = await new Promise((ok, fail) => { const i = new Image(); i.onload = () => ok(i); i.onerror = fail; i.src = url; })
+    .catch(() => null);
+  if (!img) return setStatus('stOpenFail', 'warn');
   await process(img, DEMO_TEXT);
   if (tour) await openDemo(url, prevFam);
 }
