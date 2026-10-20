@@ -181,18 +181,32 @@ async function processPhoto(img, fixedText, restore) {
   setStatus('stSearching');
   await new Promise(r => setTimeout(r, 30));
   const maxSide = 2000, k = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
-  const W = Math.round(img.naturalWidth * k), H = Math.round(img.naturalHeight * k);
+  let W = Math.round(img.naturalWidth * k), H = Math.round(img.naturalHeight * k);
   const cv = $('#scan'); cv.width = W; cv.height = H;
   const ctx = cv.getContext('2d', { willReadFrequently: true });
   ctx.drawImage(img, 0, 0, W, H);
-  const data = ctx.getImageData(0, 0, W, H).data;
+  let data = ctx.getImageData(0, 0, W, H).data;
+  // лист снят боком или под углом — выпрямляем (сверяя с образцами, чтобы не перевернуть вверх ногами)
+  if (!fixedText) {
+    const texts = ['latin', 'cyrillic'].map(k => TEMPLATES[k].join('\n'));
+    if (state.script === 'own') texts.push(expectedText());
+    const o = orient(data, W, H, texts);
+    if (o.angle) {
+      W = o.W; H = o.H; data = o.data; cv.width = W; cv.height = H;
+      ctx.putImageData(new ImageData(new Uint8ClampedArray(data.buffer), W, H), 0, 0);
+    }
+  }
   const seg = segment(data, W, H);
   if (!seg) return setStatus('stNoText', 'warn');
   // Выбранный текст всегда можно «натянуть» на пятна, поэтому сверяем фото со всеми шаблонами
   // и берём тот, что совпадает лучше (у верного текста экземпляры одной буквы похожи и резать почти не нужно)
-  const cands = fixedText ? [{ key: state.script, text: fixedText }] : ['latin', 'cyrillic', 'both'].map(k => ({ key: k, text: TEMPLATES[k].join('\n') }));
+  // быстрый проход на каждый образец; «Обе» — только если ни латиница, ни кириллица не подошли
+  const cands = fixedText ? [{ key: state.script, text: fixedText }] : ['latin', 'cyrillic'].map(k => ({ key: k, text: TEMPLATES[k].join('\n') }));
   if (state.script === 'own' && !fixedText) cands.unshift({ key: 'own', text: expectedText() });
-  for (const c of cands) c.fit = alignText(seg, c.text, W).fit;
+  for (const c of cands) c.fit = alignText(seg, c.text, W, true).fit;
+  if (!fixedText && Math.min(...cands.map(c => c.fit.match)) > 1.5) {
+    const both = { key: 'both', text: TEMPLATES.both.join('\n') }; both.fit = alignText(seg, both.text, W, true).fit; cands.push(both);
+  }
   let best = cands.reduce((a, b) => (b.fit.match < a.fit.match ? b : a));
   // Человек мог не написать одну строку образца (чаще всего — новую строку с цифрами). Тогда сайт
   // раздал бы её знаки чужим кускам и испортил соседние буквы. Пробуем образец без каждой строки
@@ -201,10 +215,16 @@ async function processPhoto(img, fixedText, restore) {
     const lines = TEMPLATES[best.key], dl = digitLine(best.key);
     // человек сам сказал, что строки с цифрами на листе нет
     if (state.noDigits && dl) best = { key: best.key, text: lines.filter(l => l !== dl).join('\n'), dropped: dl };
-    else for (let i = 0; i < lines.length; i++) {
-      const v = { key: best.key, text: lines.filter((_, k) => k !== i).join('\n'), dropped: lines[i] };
-      v.fit = alignText(seg, v.text, W).fit;
-      if (v.fit.match < best.fit.match - 0.15 && (!best.dropped || v.fit.match < best.fit.match)) best = v;
+    else {
+      // сначала строка с цифрами (её пропускают чаще всего); остальные — только если совпадение подозрительно плохое
+      const order = lines.map((_, i) => i).sort((x, y) => (lines[y] === dl) - (lines[x] === dl));
+      const full = best.fit.match;
+      for (const i of order) {
+        if (lines[i] !== dl && full <= 1.5) continue;
+        const v = { key: best.key, text: lines.filter((_, k) => k !== i).join('\n'), dropped: lines[i] };
+        v.fit = alignText(seg, v.text, W, true).fit;
+        if (v.fit.match < best.fit.match - 0.15 && (!best.dropped || v.fit.match < best.fit.match)) best = v;
+      }
     }
   }
   let note = '', tpl = '';
@@ -223,7 +243,7 @@ async function processPhoto(img, fixedText, restore) {
   state.analysis = res; state.W = W;
   // чистая копия фото — для окна правки (на #scan рисуются рамки)
   state.photo = document.createElement('canvas'); state.photo.width = W; state.photo.height = H;
-  state.photo.getContext('2d').drawImage(img, 0, 0, W, H);
+  state.photo.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(data.buffer.slice(0)), W, H), 0, 0);
 
   // Экземпляры: для каждого символа — все вхождения, лучшие (отдельные, не вырезанные) первыми
   state.instances = {}; state.choice = {};

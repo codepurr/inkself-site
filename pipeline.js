@@ -73,14 +73,81 @@ function segment(data, W, H) {
   return { lines, comps };
 }
 
+/* Угол строк на фото (в градусах, от горизонтали). Берём центры пятен размером с букву (края стола,
+   ноутбука и листа — длинные пятна, они в счёт не идут) и ищем направление, вдоль которого центры
+   выстраиваются в самые чёткие ряды. Считаем на уменьшенной копии — это быстро. */
+function estimateRotation(data, W, H) {
+  const k = Math.max(1, Math.ceil(Math.max(W, H) / 800)), w = Math.floor(W / k), h = Math.floor(H / k);
+  const v = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let m = 0;
+    for (let dy = 0; dy < k; dy++) for (let dx = 0; dx < k; dx++) { const i = 4 * ((y * k + dy) * W + x * k + dx); m += Math.min(data[i], data[i + 1], data[i + 2]); }
+    v[y * w + x] = m / (k * k);
+  }
+  const comps = components(inkMask(v, w, h).m, w, h).filter(c => c.area >= 4 && c.w < 0.08 * w && c.h < 0.08 * h && c.w < 6 * c.h && c.h < 6 * c.w);
+  if (comps.length < 20) return 0;
+  const bin = Math.max(1, 0.4 * median(comps.map(c => Math.min(c.w, c.h)))), pts = comps.map(c => [c.cx, c.cy]);
+  const score = deg => {
+    const t = deg * Math.PI / 180, sn = Math.sin(t), cs = Math.cos(t), hist = new Map();
+    for (const [x, y] of pts) { const b = Math.round((-x * sn + y * cs) / bin); hist.set(b, (hist.get(b) || 0) + 1); }
+    let q = 0; for (const n of hist.values()) q += n * n; return q;
+  };
+  let best = 0, bs = -1;
+  for (let d = -90; d < 90; d++) { const q = score(d); if (q > bs) { bs = q; best = d; } }
+  for (let d = best - 1; d <= best + 1; d += 0.25) { const q = score(d); if (q > bs) { bs = q; best = d; } }
+  return best;
+}
+
+/* Поворот снимка: пиксель результата берёт цвет из исходника, повёрнутого на deg (двулинейно).
+   Углы, куда исходник не дотягивается, заливаем средним цветом края снимка — не чёрным, иначе это «чернила». */
+function rotateRGBA(data, W, H, deg, maxSide) {
+  const t = deg * Math.PI / 180, cs = Math.cos(t), sn = Math.sin(t);
+  const w0 = Math.abs(W * cs) + Math.abs(H * sn), h0 = Math.abs(W * sn) + Math.abs(H * cs);
+  const k = Math.min(1, maxSide / Math.max(w0, h0)), w = Math.round(w0 * k), h = Math.round(h0 * k);
+  let br = 0, bg = 0, bb = 0, bn = 0;
+  for (let x = 0; x < W; x += 4) for (const y of [0, H - 1]) { const i = 4 * (y * W + x); br += data[i]; bg += data[i + 1]; bb += data[i + 2]; bn++; }
+  for (let y = 0; y < H; y += 4) for (const x of [0, W - 1]) { const i = 4 * (y * W + x); br += data[i]; bg += data[i + 1]; bb += data[i + 2]; bn++; }
+  br /= bn; bg /= bn; bb /= bn;
+  const out = new Uint8ClampedArray(w * h * 4), cx = W / 2, cy = H / 2;
+  for (let Y = 0; Y < h; Y++) for (let X = 0; X < w; X++) {
+    const ox = (X - w / 2) / k, oy = (Y - h / 2) / k;
+    const sx = cx + ox * cs - oy * sn, sy = cy + ox * sn + oy * cs, o = 4 * (Y * w + X);
+    const x0 = Math.floor(sx), y0 = Math.floor(sy), fx = sx - x0, fy = sy - y0;
+    if (x0 < 0 || y0 < 0 || x0 >= W - 1 || y0 >= H - 1) { out[o] = br; out[o + 1] = bg; out[o + 2] = bb; out[o + 3] = 255; continue; }
+    for (let c = 0; c < 3; c++) {
+      const i = 4 * (y0 * W + x0) + c;
+      out[o + c] = (data[i] * (1 - fx) + data[i + 4] * fx) * (1 - fy) + (data[i + 4 * W] * (1 - fx) + data[i + 4 * W + 4] * fx) * fy;
+    }
+    out[o + 3] = 255;
+  }
+  return { data: out, W: w, H: h };
+}
+
+/* Лист снят боком или под углом: выпрямляем. Выпрямить можно в две стороны (вверх ногами тоже ровно),
+   поэтому пробуем обе и берём ту, где известный текст совпал лучше. Небольшой наклон (до 8°)
+   разбор строк выравнивает и сам. */
+function orient(data, W, H, texts) {
+  const rot = estimateRotation(data, W, H);
+  if (Math.abs(rot) <= 8) return { data, W, H, angle: 0 };
+  let best = null;
+  for (const a of [rot, rot + 180]) {
+    const r = rotateRGBA(data, W, H, a, 2000), sg = segment(r.data, r.W, r.H);
+    if (!sg) continue;
+    const m = Math.min(...texts.map(t => alignText(sg, t, r.W, true).fit.match));
+    if (!best || m < best.m) best = { ...r, angle: a, m };
+  }
+  return best || { data, W, H, angle: 0 };
+}
+
 function analyze(data, W, H, text) {
   const seg = segment(data, W, H);
   return seg && alignText(seg, text, W);
 }
 
-function alignText(seg, text, W) {
+// quick — для выбора образца: один проход сопоставления вместо двух
+function alignText(seg, text, W, quick) {
   const obs = wordsOnPhoto(seg.lines, text.split(/\s+/).filter(Boolean).length);
-  const { items, total, cost } = alignChars(obs, text, seg.lines, W);
+  const { items, total, cost } = alignChars(obs, text, seg.lines, W, quick);
   computeLineMetrics(seg.lines, items);
   const fit = fitScore(items, total, cost);
   // other — на листе другой текст (или дописано лишнее); missing — часть текста на листе не нашлась
@@ -219,7 +286,36 @@ function textBlock(comps, medH) {
     const dy = Math.max(0, box.y0 - y1, y0 - box.y1);
     if (mh > 0.5 * medH && mh < 1.8 * medH && y1 - y0 < 2.2 * medH && dy < 4 * medH && x1 > box.x0 && x0 < box.x1) keep.add(r);
   }
-  return comps.filter((c, i) => keep.has(find(i)));
+  // Строка из отдельных значков с большими промежутками («0 1 2 3 4 5 6 7 8 9»): каждый значок — своя группа,
+  // и правила выше её теряют. Ищем ряды из 4+ пятен высотой с букву рядом с основным блоком
+  const extra = new Set(), cand = [];
+  comps.forEach((c, i) => {
+    if (keep.has(find(i)) || c.h < 0.45 * medH || c.h > 2 * medH || c.w > 2.5 * medH) return;
+    const dy = Math.max(0, box.y0 - c.y1, c.y0 - box.y1);
+    if (dy < 5 * medH && c.x1 > box.x0 - 2 * medH && c.x0 < box.x1 + 2 * medH) cand.push(i);
+  });
+  cand.sort((a, b) => comps[a].cx - comps[b].cx);
+  const rp = new Map(cand.map(i => [i, i]));
+  const rf = i => { while (rp.get(i) !== i) i = rp.get(i); return i; };
+  for (let a = 0; a < cand.length; a++) for (let b = a + 1; b < cand.length; b++) {
+    const A = comps[cand[a]], B = comps[cand[b]], gap = B.x0 - A.x1;
+    if (gap > 3.5 * medH) break;
+    // в ряду: на одной высоте с поправкой на наклон строки (до ~15%)
+    if (Math.abs(B.cy - A.cy) <= 0.6 * medH + 0.15 * Math.abs(B.cx - A.cx)) rp.set(rf(cand[a]), rf(cand[b]));
+  }
+  const rows = new Map();
+  for (const i of cand) (rows.get(rf(i)) || rows.set(rf(i), []).get(rf(i))).push(i);
+  for (const row of rows.values()) {
+    if (row.length < 4) continue;
+    const mh = median(row.map(i => comps[i].h));
+    if (mh < 0.5 * medH || mh > 1.6 * medH) continue;
+    row.forEach(i => extra.add(i));
+    // мелкие знаки рядом (точка над i, апостроф, точка) — тоже из этой строки
+    const y0 = Math.min(...row.map(i => comps[i].y0)) - medH, y1 = Math.max(...row.map(i => comps[i].y1)) + 0.5 * medH;
+    const x0 = Math.min(...row.map(i => comps[i].x0)) - medH, x1 = Math.max(...row.map(i => comps[i].x1)) + medH;
+    comps.forEach((c, i) => { if (c.h < 0.45 * medH && c.cx > x0 && c.cx < x1 && c.cy > y0 && c.cy < y1) extra.add(i); });
+  }
+  return comps.filter((c, i) => keep.has(find(i)) || extra.has(i));
 }
 
 /* Строки: берём «сердцевину» каждой буквы (без выносных), размазываем по горизонтали
@@ -382,7 +478,11 @@ function clusterLine(L, W) {
   const lmh = L.medH, mk = comps => {
     const k = { comps, sx0: Math.min(...comps.map(c => c.sx0)), sx1: Math.max(...comps.map(c => c.sx1)),
       y0: Math.min(...comps.map(c => c.y0)), y1: Math.max(...comps.map(c => c.y1)) };
-    k.sw = k.sx1 - k.sx0 + 1; k.h = k.y1 - k.y0 + 1; return k;
+    k.sw = k.sx1 - k.sx0 + 1; k.h = k.y1 - k.y0 + 1;
+    // высота тела знака — без точек и прочих мелких отметок над и под ним
+    const body = comps.filter(c => c.h >= 0.45 * lmh);
+    k.hb = body.length ? Math.max(...body.map(c => c.y1)) - Math.min(...body.map(c => c.y0)) + 1 : k.h;
+    return k;
   };
   let cl = [...L.big].sort((a, b) => a.sx0 - b.sx0).map(c => mk([c]));
   for (let i = 0; i + 1 < cl.length;) {
@@ -466,7 +566,7 @@ function wordsOnPhoto(lines, nWords) {
 /* Сопоставление (DP по всему тексту сразу):
    пятно → 1..10 букв (слитное письмо), 2–3 пятна → 1 буква (ы, рваные штрихи), шум, пропуск.
    Ширину букв ждём по общему масштабу почерка строки; пробелы из текста — мягкая подсказка. */
-function alignChars(obs, text, lines, W) {
+function alignChars(obs, text, lines, W, quick) {
   const words = text.split(/\s+/).filter(Boolean), chars = [], sp = [];
   words.forEach((w, wi) => [...w].forEach((c, ci) => { chars.push(c); sp.push(ci === 0 && wi > 0); }));
   let spanSum = 0;
@@ -478,12 +578,14 @@ function alignChars(obs, text, lines, W) {
   for (const w of words) { tw.push({ chars: [...w], j0 }); j0 += [...w].length; }
   let res = dpWords(obs, tw, lines);
   // второй проход: уточняем масштаб каждой строки по уже найденным буквам
-  lines.forEach((L, li) => {
-    const gs = res.groups.filter(g => g.cl[0].line === li);
-    const w = gs.reduce((a, g) => a + g.w, 0), s = gs.reduce((a, g) => a + g.chars.reduce((b, c) => b + cw(c), 0), 0);
-    if (s > 3) L.alpha = Math.sqrt(L.alpha * (w / s));
-  });
-  res = dpWords(obs, tw, lines);
+  if (!quick) {
+    lines.forEach((L, li) => {
+      const gs = res.groups.filter(g => g.cl[0].line === li);
+      const w = gs.reduce((a, g) => a + g.w, 0), s = gs.reduce((a, g) => a + g.chars.reduce((b, c) => b + cw(c), 0), 0);
+      if (s > 3) L.alpha = Math.sqrt(L.alpha * (w / s));
+    });
+    res = dpWords(obs, tw, lines);
+  }
   const items = [];
   // кусок фото → его буквы. Отдельное пятно = одна буква (так надёжнее всего);
   // слипшийся кусок режем решёткой разрезов, а модель почерка учится на самом листе за несколько проходов
@@ -630,6 +732,10 @@ function dpWords(obs, tw, lines) {
   const dp = new Float64Array((P + 1) * T1).fill(INF), from = new Int32Array((P + 1) * T1 * 2);
   const best = new Array((P + 1) * T1);
   dp[0] = 0;
+  // края слов фото (с поправкой на наклон) и накопленная ожидаемая ширина слов текста — для быстрого отсева
+  const wStart = obs.map(o => Math.min(...o.clusters.map(k => k.sx0))), wEnd = obs.map(o => Math.max(...o.clusters.map(k => k.sx1)));
+  const tWid = [0]; tw.forEach((t, i) => tWid.push(tWid[i] + t.chars.reduce((x, c) => x + cw(c), 0)));
+  const tChars = [0]; tw.forEach((t, i) => tChars.push(tChars[i] + t.chars.length));
   const skipP = a => obs[a].clusters.reduce((s, k) => s + (k.h < 0.35 * lines[k.line].medH ? W_SKIP_DOT : W_SKIP_CL), 0);
   const inner = (a, pa, b, tb) => {
     const cl = [], chars = [], sp = [];
@@ -642,31 +748,51 @@ function dpWords(obs, tw, lines) {
   };
   const MOVES = [];
   for (let pa = 1; pa <= 3; pa++) for (let tb = 1; tb <= 3; tb++) MOVES.push([pa, tb, W_JOIN * (pa - 1 + tb - 1)]);
+  // на мелком фото пробелы бывают не видны вовсе, и вся строка — одно «слово фото» на 4–6 слов текста
+  for (let tb = 4; tb <= 6; tb++) MOVES.push([1, tb, W_JOIN * (tb - 1)]);
+  // цифры часто пишут вразбивку («0 1 2 … 9»): одно слово текста из цифр — до 12 слов фото, склейка почти бесплатна
+  const isNum = t => t.chars.every(c => /[0-9]/.test(c));
+  for (let pa = 4; pa <= 12; pa++) MOVES.push([pa, 1, 0.1 * (pa - 1), true]);
+  // полоса: слово текста ищем там, где оно примерно должно стоять по накопленной ширине (с запасом в треть текста)
+  const pCum = [0]; obs.forEach((o, i) => pCum.push(pCum[i] + (wEnd[i] - wStart[i]) / lines[o.line].alpha));
+  const band = 12 + 0.35 * Math.max(pCum[P], tWid[T]);
   for (let a = 0; a <= P; a++) for (let b = 0; b <= T; b++) {
     const v = dp[a * T1 + b]; if (v >= INF) continue;
+    if (Math.abs(pCum[a] - tWid[b]) > band && a > 0 && b > 0) continue;
     const put = (a2, b2, c, r) => { const o = a2 * T1 + b2; if (v + c < dp[o]) { dp[o] = v + c; from[2 * o] = a; from[2 * o + 1] = b; best[o] = r; } };
-    for (const [pa, tb, pen] of MOVES) {
+    // Один подробный разбор на кусок фото (a, pa) и самое длинное подходящее tb: цена для меньших tb —
+    // промежуточный результат того же расчёта (все пятна → первые буквы). Буквы для выбранного пути
+    // пересчитываются в конце
+    const tables = new Map();
+    for (const [pa, tb, pen, num] of MOVES) {
       if (a + pa > P || b + tb > T) continue;
+      if (num && !isNum(tw[b])) continue;
+      // ширина куска фото против ожидаемой ширины слов: явно не подходит — не тратим время на подробный разбор
+      if (!num && (pa > 1 || tb > 1)) {
+        const L = lines[obs[a].line], span = (wEnd[a + pa - 1] - wStart[a]) / L.alpha, want = tWid[b + tb] - tWid[b];
+        if (span < 0.4 * want || span > 2.5 * want + 1) continue;
+      }
       // склейка слов фото через строку — только перенос по дефису
       if (pa > 1 && obs[a + pa - 1].line !== obs[a].line && !tw.slice(b, b + tb).some(t => t.chars.includes('-'))) continue;
       // слово с дефисом часто пишут тремя кусками («well», «-», «done»): такая склейка почти бесплатна
-      const p2 = pa > 1 && tw.slice(b, b + tb).some(t => t.chars.includes('-')) ? pen - 0.75 * W_JOIN * (pa - 1) : pen;
-      const r = inner(a, pa, b, tb);
-      put(a + pa, b + tb, r.cost + p2, r);
+      const p2 = num ? pen : pa > 1 && tb === 1 && isNum(tw[b]) ? 0.1 * (pa - 1) : pa > 1 && tw.slice(b, b + tb).some(t => t.chars.includes('-')) ? pen - 0.75 * W_JOIN * (pa - 1) : pen;
+      let tab = tables.get(pa);
+      if (!tab) { tab = inner(a, pa, b, Math.min(T - b, pa === 1 ? 6 : 3)); tables.set(pa, tab); }
+      put(a + pa, b + tb, tab.upTo(tChars[b + tb] - tChars[b]) + p2, { a, pa, b, tb });
     }
     if (a < P) put(a + 1, b, skipP(a), null);
     if (b < T) put(a, b + 1, W_SKIP_CH * tw[b].chars.length, null);
   }
   const groups = [], matches = []; let a = P, b = T;
   while (a > 0 || b > 0) {
-    const o = a * T1 + b, r = best[o];
-    if (r) { groups.unshift(...r.groups); matches.unshift(Object.assign(r.match, { groups: r.groups })); }
+    const o = a * T1 + b, mv = best[o];
+    if (mv) { const r = inner(mv.a, mv.pa, mv.b, mv.tb); groups.unshift(...r.groups); matches.unshift(Object.assign(r.match, { groups: r.groups })); }
     const pa = from[2 * o], pb = from[2 * o + 1]; a = pa; b = pb;
   }
   return { cost: dp[P * T1 + T], groups, matches };
 }
 
-const DOT_W = 1.5;
+const DOT_W = 1.5, HEIGHT_W = 1.2;
 // буквы, у которых сверху отдельная точка или знак: i j ё й и всё с диакритикой (é, ü, ï…)
 const hasDot = c => 'ijёйЁЙ'.includes(c) || (c.normalize('NFD').length > 1 && c.normalize('NFD')[0] !== c);
 function dpChars(cl, chars, sp, lines) {
@@ -675,8 +801,20 @@ function dpChars(cl, chars, sp, lines) {
   const spc = [0]; sp.forEach((s, i) => spc.push(spc[i] + (s ? 1 : 0)));
   const dp = new Float64Array((m + 1) * N1).fill(INF), bp = new Int8Array((m + 1) * N1), bq = new Int8Array((m + 1) * N1), bc = new Float32Array((m + 1) * N1);
   dp[0] = 0;
+  // Высота буквы против высоты строчных в строке (основная полоса coreH): у «a c e m n o w…» тело ~1.1,
+  // у заглавных, цифр и «b d h k l t g y…» — от 1.45 (замер на листах пользовательницы). Строчные на заглавных
+  // и наоборот — признак сдвига текста
+  // классы знаков считаем один раз на вызов: сколько букв, сколько высоких, сколько «с точкой» до позиции j
+  const isX = c => X_LETTERS.has(c) || 'iёй'.includes(c);   // тело «i», «ё», «й» без точки — высотой со строчные
+  const nL = [0], nT = [0], nD = [0];
+  chars.forEach((c, i) => { const let_ = /\p{L}|[0-9]/u.test(c); nL.push(nL[i] + let_); nT.push(nT[i] + (let_ && !isX(c))); nD.push(nD[i] + hasDot(c)); });
+  const heightCost = (k, j, cnt) => {
+    const xh = lines[k.line].coreH; if (!(xh > 0) || nL[j + cnt] === nL[j]) return 0;
+    const rel = k.hb / xh, tall = nT[j + cnt] - nT[j];
+    return tall === 0 ? HEIGHT_W * Math.min(1, Math.max(0, (rel - 1.45) / 0.4)) : HEIGHT_W * Math.min(1, Math.max(0, (1.3 - rel) / 0.3));
+  };
   const shape = (k, j, cnt, lmh) => {
-    if (cnt > 1) return k.h < 0.3 * lmh ? 2 : 0;
+    if (cnt > 1) return (k.h < 0.3 * lmh ? 2 : 0) + heightCost(k, j, cnt);
     const ch = chars[j];
     // двоеточие и точка с запятой — две отметки одна над другой, по высоте почти как строчная буква
     if (ch === ':' || ch === ';') return k.h > 0.95 * lmh ? 2 : 0;
@@ -686,7 +824,7 @@ function dpChars(cl, chars, sp, lines) {
     if ((ch === '(' || ch === ')') && (k.h < 0.7 * lmh || k.sw > 0.6 * k.h)) return 2;
     if (SMALL_PUNCT.has(ch)) return (k.h > 0.6 * lmh ? 2 : 0) + (ch === '-' && k.h > 0.3 * lmh ? 1.2 : 0);
     if (!PUNCT.has(ch) && k.h < 0.28 * lmh) return 2;
-    return 0;
+    return heightCost(k, j, 1);
   };
   // зазор перед пятном i против ожидаемого пробела перед буквой j
   const ctx = (i, j) => {
@@ -704,11 +842,13 @@ function dpChars(cl, chars, sp, lines) {
     if (i < m && j < n) {
       const L = lines[cl[i].line], al = L.alpha, u = 0.6 * al, c0 = ctx(i, j);
       for (let k = 1; k <= Math.min(10, n - j); k++) {
+        // больше букв в кусок не влезет: их ожидаемая ширина уже в 2.5 раза больше куска
+        if (k > 1 && al * (pre[j + k] - pre[j]) > 2.5 * cl[i].sw + al) break;
         const inside = spc[j + k] - spc[j + 1];
         const dev = (cl[i].sw - al * (pre[j + k] - pre[j])) / u;
         let c = Math.min(4, 0.5 * dev * dev) + (k > 1 ? 0.35 + 0.1 * (k - 1) : 0) + 2.5 * inside + shape(cl[i], j, k, L.medH) + c0;
         // кусок с точкой сверху, а среди его букв нет ни одной «с точкой» — почти наверняка сдвиг
-        if (cl[i].dotAbove && !chars.slice(j, j + k).some(hasDot)) c += DOT_W;
+        if (cl[i].dotAbove && nD[j + k] === nD[j]) c += DOT_W;
         upd(i + 1, j + k, v + c, 1, k, c);
       }
       for (let p = 2; p <= 3 && i + p <= m; p++) {
@@ -721,7 +861,13 @@ function dpChars(cl, chars, sp, lines) {
           if (cl[t].h < 0.35 * L.medH && (cl[t].y0 + cl[t].y1) / 2 > L.centerAt((cl[t].sx0 + cl[t].sx1) / 2) + 0.8 * L.medH) gapPen += 1.5;
         }
         const dev = (w - cl[i].sx0 + 1 - al * cw(chars[j])) / u;
-        const c = Math.min(4, 0.5 * dev * dev) + 0.4 * (p - 1) + gapPen + c0;
+        // склеенные куски — одна буква: те же проверки формы, высоты и точки, что и для одного куска
+        const g = cl.slice(i, i + p), body = g.filter(k => k.hb >= 0.45 * L.medH);
+        const mg = { line: cl[i].line, sw: w - cl[i].sx0 + 1, h: Math.max(...g.map(k => k.y1)) - Math.min(...g.map(k => k.y0)) + 1,
+          hb: body.length ? Math.max(...body.map(k => k.y1)) - Math.min(...body.map(k => k.y0)) + 1 : 0, dotAbove: g.some(k => k.dotAbove) };
+        if (!mg.hb) mg.hb = mg.h;
+        let c = Math.min(4, 0.5 * dev * dev) + 0.4 * (p - 1) + gapPen + c0 + shape(mg, j, 1, L.medH);
+        if (mg.dotAbove && !hasDot(chars[j])) c += DOT_W;
         upd(i + p, j + 1, v + c, p, 1, c);
       }
     }
@@ -734,7 +880,7 @@ function dpChars(cl, chars, sp, lines) {
     if (p && q) { const g = cl.slice(i - p, i); groups.push({ cl: g, j0: j - q, chars: chars.slice(j - q, j), cost: bc[o], w: Math.max(...g.map(k => k.sx1)) - g[0].sx0 + 1 }); }
     i -= p; j -= q;
   }
-  return { cost: dp[m * N1 + n], groups: groups.reverse() };
+  return { cost: dp[m * N1 + n], groups: groups.reverse(), upTo: j => dp[m * N1 + j] };
 }
 
 function mkItem(char, px, line, q, split, W) {
