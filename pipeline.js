@@ -10,8 +10,8 @@ const median = a => { if (!a.length) return NaN; const s = [...a].sort((x, y) =>
 const pct = (a, q) => { if (!a.length) return NaN; const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(s.length * q))]; };
 const isUpper = c => c !== c.toLowerCase() && c === c.toUpperCase();
 const isLower = c => c !== c.toUpperCase() && c === c.toLowerCase();
-const PUNCT = new Set('.,!?:-;');
-const SMALL_PUNCT = new Set('.,:;-');
+const PUNCT = new Set(".,!?:-;'");
+const SMALL_PUNCT = new Set(".,:;-'");
 
 // Примерная ширина знака в долях «средней буквы» — нужна, чтобы резать слитные слова
 function cw(c) {
@@ -43,6 +43,8 @@ function segment(data, W, H) {
   comps = comps.filter(c => c.area >= minArea && c.w < W * 0.6 && c.h < H * 0.35 && !(edge(c) && (c.w > W * 0.12 || c.h > H * 0.12)));
   if (comps.length < 5) return null;
   let medH = pct(comps.filter(c => c.area >= 3 * minArea).map(c => c.h), 0.6);
+  // буквы ниже ~0.6% кадра (12 пикселей на 2000) — это не текст, а шум, сетка или мелкий узор
+  if (!(medH >= Math.max(W, H) * 0.006)) return null;
   // край листа, линейки, крупные рисунки
   comps = comps.filter(c => !(c.h > 4.5 * medH) && !(c.h > 2 * medH && c.h > 9 * c.w) && !(c.w > 2 * medH && c.w > 12 * c.h));
   // тени, край страниц, цветные предметы светлее настоящих чернил: отсекаем пятна слабее 75% от типичных
@@ -50,17 +52,16 @@ function segment(data, W, H) {
   comps = comps.filter(c => c.ink >= 0.75 * medInk);
   // клякса, залитое пятно, корешок книги: широкое и плотно залитое чернилами (буквы — штрихи, у них заливка 15–40%);
   // узкие плотные штрихи (l, i, !) и мелкие точки не трогаем
-  comps = comps.filter(c => !(c.area / (c.w * c.h) > 0.6 && c.w > 0.35 * medH && c.h > 0.5 * medH));
+  // Клякса — это не плотность (жирный маркер и кисть тоже плотные), а толщина: у буквы штрих одной толщины
+  // на всём листе, а в кляксу помещается круг в разы больше. Меряем самый большой вписанный круг каждого пятна
+  for (const c of comps) c.thick = c.area >= 3 * minArea ? maxInscribed(c, W) : 0;
+  const strokeR = median(comps.filter(c => c.thick).map(c => c.thick));
+  comps = comps.filter(c => !(c.thick > 2.4 * strokeR && c.thick > 0.12 * medH && c.area / (c.w * c.h) > 0.45));
   comps = textBlock(comps, medH);
   medH = pct(comps.filter(c => c.area >= 3 * minArea).map(c => c.h), 0.6);
   const lines = buildLines(comps, medH, W);
-  const obs = [];
-  lines.forEach((L, li) => {
-    estimateSlant(L, W);
-    L.clusters = clusterLine(L, W);
-    for (const word of splitWords(L.clusters, L.medH)) obs.push({ clusters: word, line: li });
-  });
-  return { lines, obs, comps };
+  lines.forEach(L => { estimateSlant(L, W); L.clusters = clusterLine(L, W); });
+  return { lines, comps };
 }
 
 function analyze(data, W, H, text) {
@@ -69,13 +70,18 @@ function analyze(data, W, H, text) {
 }
 
 function alignText(seg, text, W) {
-  const { items, total, cost } = alignChars(seg.obs, text, seg.lines, W);
+  const obs = wordsOnPhoto(seg.lines, text.split(/\s+/).filter(Boolean).length);
+  const { items, total, cost } = alignChars(obs, text, seg.lines, W);
   computeLineMetrics(seg.lines, items);
-  return { items, lines: seg.lines, comps: seg.comps, total, fit: fitScore(items, total, cost) };
+  const fit = fitScore(items, total, cost);
+  // other — на листе другой текст (или дописано лишнее); missing — часть текста на листе не нашлась
+  const warn = fit.match > MATCH_MAX ? 'other' : fit.found < 0.93 ? 'missing' : '';
+  return { items, obs, lines: seg.lines, comps: seg.comps, total, fit, warn };
 }
 
 /* Насколько текст подходит к фото. Неверный текст всё равно «натягивается» на пятна,
    но тогда под одной буквой оказываются непохожие друг на друга пятна, и приходится много резать. */
+const MATCH_MAX = 1.92;
 function fitScore(items, total, cost) {
   const by = new Map();
   for (const it of items) (by.get(it.char) || by.set(it.char, []).get(it.char)).push(it.thumb);
@@ -84,7 +90,11 @@ function fitScore(items, total, cost) {
   const split = items.filter(i => i.split).length / Math.max(1, total);
   const found = items.length / Math.max(1, total);
   const unlike = pairs ? sum / pairs : 0.5;
-  return { cost: cost / Math.max(1, total), split, found, unlike, score: unlike + 0.6 * split + 0.08 * cost / Math.max(1, total) + 0.8 * (1 - found) };
+  const c = cost / Math.max(1, total);
+  // match — насколько текст совпал с листом: цена сопоставления на букву + непохожесть экземпляров одной буквы.
+  // На 40 тестовых листах верный текст даёт не больше 1.86, чужой текст или лишняя строка на листе — от 1.95
+  const match = c / 0.3 + unlike / 0.65;
+  return { cost: c, split, found, unlike, match, score: unlike + 0.6 * split + 0.08 * c + 0.8 * (1 - found) };
 }
 function thumbDist(a, b) { let x = 0, u = 0; for (let i = 0; i < a.length; i++) { x += a[i] !== b[i]; u += a[i] | b[i]; } return u ? x / u : 0; }
 
@@ -114,6 +124,23 @@ function inkMask(v, W, H) {
   const m = new Uint8Array(W * H);
   for (let i = 0; i < W * H; i++) if (d[i] > thr) m[i] = 1;
   return { m, d, hi };
+}
+
+/* Радиус самого большого круга внутри пятна (двухпроходное расстояние до фона, шахматная метрика 3-4) */
+function maxInscribed(c, W) {
+  const w = c.w + 2, h = c.h + 2, d = new Float32Array(w * h);
+  for (const p of c.px) d[((p / W | 0) - c.y0 + 1) * w + (p % W - c.x0 + 1)] = 1e9;
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const i = y * w + x; if (!d[i]) continue;
+    d[i] = Math.min(d[i], d[i - 1] + 3, d[i - w] + 3, d[i - w - 1] + 4, d[i - w + 1] + 4);
+  }
+  let mx = 0;
+  for (let y = h - 2; y > 0; y--) for (let x = w - 2; x > 0; x--) {
+    const i = y * w + x; if (!d[i]) continue;
+    d[i] = Math.min(d[i], d[i + 1] + 3, d[i + w] + 3, d[i + w + 1] + 4, d[i + w - 1] + 4);
+    if (d[i] > mx) mx = d[i];
+  }
+  return mx / 3;
 }
 
 function components(m, W, H) {
@@ -158,6 +185,17 @@ function textBlock(comps, medH) {
   comps.forEach((c, i) => { if (c.h >= 0.4 * medH) size.set(find(i), (size.get(find(i)) || 0) + 1); });
   const max = Math.max(...size.values());
   const keep = new Set([...size].filter(([, n]) => n >= Math.max(3, 0.3 * max)).map(([r]) => r));
+  // в прописи слово — одно пятно, поэтому блок прописи мал по числу пятен. Оставляем и группу,
+  // где много чернил, если её пятна по высоте как буквы основного блока (рисунки обычно крупнее и реже)
+  const stat = new Map();
+  comps.forEach((c, i) => { if (c.h < 0.4 * medH) return; const r = find(i); const st = stat.get(r) || stat.set(r, { area: 0, hs: [] }).get(r); st.area += c.area; st.hs.push(c.h); });
+  const mainH = median([...stat].filter(([r]) => keep.has(r)).flatMap(([, st]) => st.hs));
+  const maxArea = Math.max(...[...stat.values()].map(st => st.area));
+  for (const [r, st] of stat) {
+    if (keep.has(r) || st.hs.length < 4) continue;
+    const mh = median(st.hs);
+    if (st.area >= 0.2 * maxArea && mh > 0.6 * mainH && mh < 1.6 * mainH) keep.add(r);
+  }
   // короткая строка, отставленная от основного блока («DOG», «wow!»), — тоже текст,
   // если в ней 2+ пятна высотой с букву, стоящие в одну линию под/над блоком; одиночные рисунки отпадают
   const box = { x0: 1e9, x1: -1, y0: 1e9, y1: -1 };
@@ -363,14 +401,42 @@ function clusterLine(L, W) {
   return [...cl, ...sc].sort((a, b) => a.sx0 - b.sx0);
 }
 
-function splitWords(cl, lmh) {
-  const words = []; let cur = [], right = -1e9;
-  for (const k of cl) {
-    if (cur.length && k.sx0 - right > 0.42 * lmh) { words.push(cur); cur = []; }
-    cur.push(k); right = Math.max(right, k.sx1);
+/* Слова на фото. Порог пробела у каждого почерка свой (в прописи зазоры внутри слова почти нулевые,
+   в печатных буквах — заметные), поэтому берём его с самого листа: в тексте K слов на N строках,
+   значит, пробелов внутри строк около K − N. Сортируем все зазоры по убыванию и ставим порог
+   у ранга K − N, на самом заметном скачке рядом с ним. */
+function wordGaps(lines) {
+  const gaps = [];
+  lines.forEach(L => {
+    let right = -1e9;
+    L.clusters.forEach((k, i) => { if (i) gaps.push((k.sx0 - right) / L.medH); right = Math.max(right, k.sx1); });
+  });
+  return gaps;
+}
+function wordThreshold(lines, nWords) {
+  const g = wordGaps(lines).sort((a, b) => b - a);
+  const r = Math.max(1, Math.min(g.length - 1, nWords - lines.length));
+  if (g.length < 2) return 0.42;
+  let best = r, bv = -1e9;
+  for (let i = Math.max(1, Math.round(r * 0.6)); i <= Math.min(g.length - 1, Math.round(r * 1.5) + 1); i++) {
+    const hi = Math.max(g[i - 1], 0.02), lo = Math.max(g[i], 0.02);
+    const v = Math.log(hi / lo) - 0.6 * Math.abs(Math.log(i / r));
+    if (v > bv) { bv = v; best = i; }
   }
-  if (cur.length) words.push(cur);
-  return words;
+  const t = (g[best - 1] + Math.max(g[best], 0)) / 2;
+  return Math.max(0.12, Math.min(0.9, t));
+}
+function wordsOnPhoto(lines, nWords) {
+  const thr = wordThreshold(lines, nWords), obs = [];
+  lines.forEach((L, li) => {
+    let cur = [], right = -1e9;
+    for (const k of L.clusters) {
+      if (cur.length && (k.sx0 - right) / L.medH > thr) { obs.push({ clusters: cur, line: li }); cur = []; }
+      cur.push(k); right = Math.max(right, k.sx1);
+    }
+    if (cur.length) obs.push({ clusters: cur, line: li });
+  });
+  return obs;
 }
 
 /* Сопоставление (DP по всему тексту сразу):
@@ -383,26 +449,197 @@ function alignChars(obs, text, lines, W) {
   for (const o of obs) spanSum += (Math.max(...o.clusters.map(k => k.sx1)) - Math.min(...o.clusters.map(k => k.sx0)) + 1) / lines[o.line].medH;
   const rho = spanSum / chars.reduce((a, c) => a + cw(c), 0);
   lines.forEach(L => L.alpha = rho * L.medH);
-  const cl = []; lines.forEach((L, li) => L.clusters.forEach(k => { k.line = li; cl.push(k); }));
-  let res = dpChars(cl, chars, sp, lines);
+  lines.forEach((L, li) => L.clusters.forEach(k => { k.line = li; }));
+  const tw = []; let j0 = 0;
+  for (const w of words) { tw.push({ chars: [...w], j0 }); j0 += [...w].length; }
+  let res = dpWords(obs, tw, lines);
   // второй проход: уточняем масштаб каждой строки по уже найденным буквам
   lines.forEach((L, li) => {
     const gs = res.groups.filter(g => g.cl[0].line === li);
     const w = gs.reduce((a, g) => a + g.w, 0), s = gs.reduce((a, g) => a + g.chars.reduce((b, c) => b + cw(c), 0), 0);
     if (s > 3) L.alpha = Math.sqrt(L.alpha * (w / s));
   });
-  res = dpChars(cl, chars, sp, lines);
+  res = dpWords(obs, tw, lines);
   const items = [];
-  for (const g of res.groups) {
-    const L = lines[g.cl[0].line];
-    if (g.chars.length === 1) {
-      const px = g.cl.flatMap(k => k.comps.flatMap(c => c.px));
-      items.push(mkItem(g.chars[0], px, g.cl[0].line, g.cost + (g.cl.length > 1 ? 0.3 : 0), false, W));
-    } else {
-      splitCluster(g.cl[0], g.chars, L, W).forEach((px, t) => px.length && items.push(mkItem(g.chars[t], px, g.cl[0].line, 1 + g.cost, true, W)));
+  // кусок фото → его буквы. Отдельное пятно = одна буква (так надёжнее всего);
+  // слипшийся кусок режем решёткой разрезов, а модель почерка учится на самом листе за несколько проходов
+  const units = res.groups.map(g => ({ cl: g.cl, chars: g.chars, j0: g.j0, line: g.cl[0].line, cost: g.cost, single: g.chars.length === 1 }));
+  const NP = 3;
+  let model = null, cuts = null;
+  for (let pass = 0; pass < NP; pass++) {
+    cuts = units.map(u => cutWord(u, lines[u.line], W, model));
+    model = learnModel(cuts, lines);
+  }
+  units.forEach((u, ui) => {
+    const c = cuts[ui];
+    if (u.single) return items.push(Object.assign(mkItem(u.chars[0], c.parts[0], u.line, u.cost + (u.cl.length > 1 ? 0.3 : 0), false, W), { idx: u.j0 }));
+    c.parts.forEach((px, t) => px.length && items.push(Object.assign(mkItem(u.chars[t], px, u.line, 1 + u.cost, true, W), { idx: u.j0 + t })));
+  });
+  return { items, total: chars.length, cost: res.cost, model };
+}
+
+/* Нарезка слова на буквы — «решётка разрезов».
+   Слово выпрямляем по наклону почерка и делим на колонки. Перебираем все расстановки разрезов
+   (динамическое программирование) и берём самую дешёвую. Цена складывается из:
+   — чернил под разрезом (разрез по тонкой связке дешёвый, через петлю или ножку дорогой);
+   — ширины буквы против ожидаемой (сначала по таблице, потом по этому же почерку);
+   — непохожести куска на другие экземпляры той же буквы на листе (каждая буква в панграмме 2–3 раза).
+   Модель почерка (ширины и образцы букв) уточняется за несколько проходов. */
+const RAST_R = 24, THUMB_B = 10;
+// веса решётки подобраны на 40 синтетических листах и проверены на 40 других (tools/bench)
+const CUT_W = 0.3, POS_W = 1.6, WID_W = 1.0, PROTO_W = 6;
+function wordRaster(cl, L, W) {
+  const px = cl.flatMap(k => k.comps.flatMap(c => c.px));
+  const sx = px.map(L.shx);
+  let a = 1e9, b = -1e9; for (const x of sx) { if (x < a) a = x; if (x > b) b = x; }
+  const step = Math.max(1, L.alpha / 14), ncol = Math.floor((b - a) / step) + 1;
+  const top = 1.25 * L.medH, span = 2.3 * L.medH;
+  const PS = new Float32Array((ncol + 1) * RAST_R), cols = Array.from({ length: ncol }, () => []);
+  const col = new Int32Array(px.length);
+  px.forEach((p, i) => {
+    const c = Math.min(ncol - 1, Math.floor((sx[i] - a) / step)); col[i] = c;
+    const y = p / W | 0, yc = y - L.centerAt(p % W);
+    const r = Math.max(0, Math.min(RAST_R - 1, Math.floor((yc + top) / span * RAST_R)));
+    PS[(c + 1) * RAST_R + r]++; cols[c].push(y);
+  });
+  for (let c = 1; c <= ncol; c++) for (let r = 0; r < RAST_R; r++) PS[c * RAST_R + r] += PS[(c - 1) * RAST_R + r];
+  // цена разреза: сколько чернил в колонке и сколько штрихов её пересекает; нормируем на толщину штриха
+  const thick = Math.max(1.5, 0.07 * L.medH), cut = new Float32Array(ncol + 1);
+  const raw = cols.map(ys => {
+    if (!ys.length) return 0;
+    ys.sort((u, v) => u - v);
+    let runs = 1; for (let t = 1; t < ys.length; t++) if (ys[t] - ys[t - 1] > 2) runs++;
+    return ys.length / (step * thick) + 1.5 * (runs - 1);
+  });
+  for (let x = 0; x <= ncol; x++) { const v = ((raw[x - 1] || 0) + (raw[x] || 0)) / 2; cut[x] = Math.min(12, v); }
+  return { px, col, a, step, ncol, PS, cut };
+}
+function thumbOf(R, u, v) {
+  const t = new Float32Array(THUMB_B * RAST_R);
+  let n2 = 0;
+  for (let bi = 0; bi < THUMB_B; bi++) {
+    let c0 = u + Math.floor((v - u) * bi / THUMB_B), c1 = u + Math.floor((v - u) * (bi + 1) / THUMB_B);
+    if (c1 <= c0) c1 = c0 + 1;
+    for (let r = 0; r < RAST_R; r++) { const s = R.PS[c1 * RAST_R + r] - R.PS[c0 * RAST_R + r]; t[bi * RAST_R + r] = s; n2 += s * s; }
+  }
+  const k = n2 ? 1 / Math.sqrt(n2) : 0;
+  for (let i = 0; i < t.length; i++) t[i] *= k;
+  return t;
+}
+function cutWord(m, L, W, model) {
+  const R = wordRaster(m.cl, L, W), n = m.chars.length, X = R.ncol, INF = 1e18;
+  const wexp = m.chars.map(c => L.alpha * (model?.w[c] ?? cw(c)));
+  const proto = m.chars.map(c => model?.proto[c] || null);
+  const inkAt = (u, v) => { let s = 0; for (let r = 0; r < RAST_R; r++) s += R.PS[v * RAST_R + r] - R.PS[u * RAST_R + r]; return s; };
+  const f = new Float64Array((n + 1) * (X + 1)).fill(INF), from = new Int32Array((n + 1) * (X + 1));
+  f[0] = 0;
+  if (n === 1) return finish([0, X]);
+  // ожидаемое место каждого разреза — пропорционально ожидаемым ширинам букв
+  const sumW = wexp.reduce((a, b) => a + b, 0), avg = X / n, expAt = []; let acc = 0;
+  for (let t = 0; t < n - 1; t++) { acc += wexp[t]; expAt.push(acc / sumW * X); }
+  for (let t = 1; t <= n; t++) {
+    const we = wexp[t - 1] / R.step, lo = Math.max(1, Math.floor(0.2 * we)), hi = Math.ceil(2.4 * we) + 2, pr = proto[t - 1];
+    const xs = t === n ? [X] : null;
+    for (let x = t; x <= X - (n - t); x++) {
+      if (xs && x !== X) continue;
+      let best = INF, bu = -1;
+      for (let u = Math.max(t - 1, x - hi); u <= x - lo; u++) {
+        const fu = f[(t - 1) * (X + 1) + u]; if (fu >= INF) continue;
+        const dev = (x - u - we) / (0.35 * we + 1);
+        let c = fu + Math.min(6, WID_W * dev * dev);
+        if (inkAt(u, x) < 2) c += 4;
+        if (pr) { const th = thumbOf(R, u, x); let d = 0; for (let i = 0; i < th.length; i++) d += th[i] * pr[i]; c += PROTO_W * (1 - d); }
+        if (c < best) { best = c; bu = u; }
+      }
+      if (bu < 0) continue;
+      const pos = t < n ? (x - expAt[t - 1]) / (0.45 * avg) : 0;
+      f[t * (X + 1) + x] = best + (t < n ? CUT_W * R.cut[x] + POS_W * pos * pos : 0); from[t * (X + 1) + x] = bu;
     }
   }
-  return { items, total: chars.length, cost: res.cost };
+  const cuts = [X]; for (let t = n, x = X; t > 0; t--) { x = from[t * (X + 1) + x]; cuts.unshift(x); }
+  return finish(cuts);
+  function finish(cuts) {
+  const parts = m.chars.map(() => []);
+  R.px.forEach((p, i) => { let t = 0; while (t < n - 1 && R.col[i] >= cuts[t + 1]) t++; parts[t].push(p); });
+  const costs = [], split = [];
+  for (let t = 0; t < n; t++) {
+    // буква отрезана от соседней (разрез прошёл по чернилам), а не стоит отдельно
+    split.push((t > 0 && R.cut[cuts[t]] > 0.3) || (t < n - 1 && R.cut[cuts[t + 1]] > 0.3));
+    costs.push(split[t] ? 1 : 0);
+  }
+  return { parts, cuts, R, wexp, costs, split, chars: m.chars, L, single: n === 1 };
+  }
+}
+// модель почерка: ширина каждой буквы в долях масштаба строки и средний образец (миниатюра)
+function learnModel(cuts, lines) {
+  const ws = {}, th = {};
+  for (const c of cuts) {
+    if (!c) continue;
+    c.chars.forEach((ch, t) => {
+      const u = c.cuts[t], v = c.cuts[t + 1];
+      (ws[ch] ||= []).push((v - u) * c.R.step / c.L.alpha);
+      (th[ch] ||= []).push(thumbOf(c.R, u, v));
+    });
+  }
+  const model = { w: {}, proto: {} };
+  for (const ch in ws) {
+    const k = ws[ch].length, med = median(ws[ch]);
+    model.w[ch] = (k * med + 2 * cw(ch)) / (k + 2);
+    if (k >= 2) {
+      const p = new Float32Array(th[ch][0].length);
+      for (const t of th[ch]) for (let i = 0; i < p.length; i++) p[i] += t[i];
+      let n2 = 0; for (const v of p) n2 += v * v; const q = n2 ? 1 / Math.sqrt(n2) : 0;
+      for (let i = 0; i < p.length; i++) p[i] *= q;
+      model.proto[ch] = p;
+    }
+  }
+  return model;
+}
+
+/* Сначала слова, потом буквы. Пробел между словами на фото надёжен даже в прописи,
+   поэтому ошибка внутри слова не может утянуть за собой остальной текст.
+   Ходы: слово фото ↔ слово текста; два слова фото ↔ одно (лишний зазор, перенос «well-» / «done»);
+   одно слово фото ↔ два (пробел не виден); слово фото без текста (дописано, рисунок) и слово текста без фото (не написано). */
+const W_JOIN = 1.2, W_SKIP_CL = 1.6, W_SKIP_DOT = 0.5, W_SKIP_CH = 1.6;
+function dpWords(obs, tw, lines) {
+  const P = obs.length, T = tw.length, INF = 1e18, T1 = T + 1;
+  const dp = new Float64Array((P + 1) * T1).fill(INF), from = new Int32Array((P + 1) * T1 * 2);
+  const best = new Array((P + 1) * T1);
+  dp[0] = 0;
+  const skipP = a => obs[a].clusters.reduce((s, k) => s + (k.h < 0.35 * lines[k.line].medH ? W_SKIP_DOT : W_SKIP_CL), 0);
+  const inner = (a, pa, b, tb) => {
+    const cl = [], chars = [], sp = [];
+    for (let t = a; t < a + pa; t++) cl.push(...obs[t].clusters);
+    for (let t = b; t < b + tb; t++) tw[t].chars.forEach((c, i) => { chars.push(c); sp.push(i === 0 && t > b); });
+    const r = dpChars(cl, chars, sp, lines);
+    r.groups.forEach(g => g.j0 += tw[b].j0);
+    r.match = { cl, chars, j0: tw[b].j0, line: cl[0].line, oneLine: cl.every(k => k.line === cl[0].line) };
+    return r;
+  };
+  const MOVES = [];
+  for (let pa = 1; pa <= 3; pa++) for (let tb = 1; tb <= 3; tb++) MOVES.push([pa, tb, W_JOIN * (pa - 1 + tb - 1)]);
+  for (let a = 0; a <= P; a++) for (let b = 0; b <= T; b++) {
+    const v = dp[a * T1 + b]; if (v >= INF) continue;
+    const put = (a2, b2, c, r) => { const o = a2 * T1 + b2; if (v + c < dp[o]) { dp[o] = v + c; from[2 * o] = a; from[2 * o + 1] = b; best[o] = r; } };
+    for (const [pa, tb, pen] of MOVES) {
+      if (a + pa > P || b + tb > T) continue;
+      // склейка слов фото через строку — только перенос по дефису
+      if (pa > 1 && obs[a + pa - 1].line !== obs[a].line && !tw.slice(b, b + tb).some(t => t.chars.includes('-'))) continue;
+      // слово с дефисом часто пишут тремя кусками («well», «-», «done»): такая склейка почти бесплатна
+      const p2 = pa > 1 && tw.slice(b, b + tb).some(t => t.chars.includes('-')) ? pen - 0.75 * W_JOIN * (pa - 1) : pen;
+      const r = inner(a, pa, b, tb);
+      put(a + pa, b + tb, r.cost + p2, r);
+    }
+    if (a < P) put(a + 1, b, skipP(a), null);
+    if (b < T) put(a, b + 1, W_SKIP_CH * tw[b].chars.length, null);
+  }
+  const groups = [], matches = []; let a = P, b = T;
+  while (a > 0 || b > 0) {
+    const o = a * T1 + b, r = best[o];
+    if (r) { groups.unshift(...r.groups); matches.unshift(Object.assign(r.match, { groups: r.groups })); }
+    const pa = from[2 * o], pb = from[2 * o + 1]; a = pa; b = pb;
+  }
+  return { cost: dp[P * T1 + T], groups, matches };
 }
 
 function dpChars(cl, chars, sp, lines) {
@@ -461,7 +698,7 @@ function dpChars(cl, chars, sp, lines) {
   const groups = []; let i = m, j = n;
   while (i > 0 || j > 0) {
     const o = i * N1 + j, p = bp[o], q = bq[o];
-    if (p && q) { const g = cl.slice(i - p, i); groups.push({ cl: g, chars: chars.slice(j - q, j), cost: bc[o], w: Math.max(...g.map(k => k.sx1)) - g[0].sx0 + 1 }); }
+    if (p && q) { const g = cl.slice(i - p, i); groups.push({ cl: g, j0: j - q, chars: chars.slice(j - q, j), cost: bc[o], w: Math.max(...g.map(k => k.sx1)) - g[0].sx0 + 1 }); }
     i -= p; j -= q;
   }
   return { cost: dp[m * N1 + n], groups: groups.reverse() };
@@ -511,7 +748,7 @@ function splitCluster(k, chars, L, W) {
 
 /* Базовая линия строки — прямая по низам букв без выносных; масштаб — по высоте строчных или заглавных */
 const X_LETTERS = new Set('acemnorsuvwxzавгежзиклмнопстхчшъыьэюя');
-const DESC = new Set('gjpqyfрудфцщ,QДЦЩ');
+const DESC = new Set('gjpqyfрудфцщ,QДЦЩ()');
 const CAP_SKIP = new Set('QЙЁДЦЩJ');
 function computeLineMetrics(lines, items) {
   lines.forEach(L => { L.pts = []; L.xh = []; L.cap = []; L.hs = []; });

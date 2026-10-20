@@ -3,17 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- всё грузится только с самого сайта; фото и шрифт никуда не отправляются -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <title>inkfont — твой почерк как шрифт</title>
 <meta name="description" content="Напиши три строчки от руки, сфотографируй — получи готовый шрифт .otf за минуту.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- Neucha — рукописный образец на «листе»; Manrope — кириллица вместо General Sans -->
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600&family=Neucha&display=swap" rel="stylesheet">
 <link rel="preload" href="fonts/GeneralSans-Regular.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/GeneralSans-Semibold.woff2" as="font" type="font/woff2" crossorigin>
 <style>
   @font-face{font-family:'General Sans';src:url('fonts/GeneralSans-Regular.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
   @font-face{font-family:'General Sans';src:url('fonts/GeneralSans-Semibold.woff2') format('woff2');font-weight:600;font-style:normal;font-display:swap}
+  /* Manrope — кириллица вместо General Sans; Neucha — рукописный образец на «листе». Все шрифты лежат на сайте:
+     браузер посетителя не ходит ни в Google, ни на другие чужие серверы */
+  @font-face{font-family:'Manrope';src:url('fonts/Manrope-cyrillic.woff2') format('woff2');font-weight:400 600;font-display:swap;unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+  @font-face{font-family:'Neucha';src:url('fonts/Neucha-latin.woff2') format('woff2');font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+2000-206F,U+20AC,U+2122,U+2212}
+  @font-face{font-family:'Neucha';src:url('fonts/Neucha-cyrillic.woff2') format('woff2');font-display:swap;unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
   :root{
     --ink:#1b1d18;       /* тёплый почти чёрный */
     --soft:#6f7268;
@@ -115,14 +118,17 @@
   #scan{width:100%;height:auto;border-radius:16px;background:#fff;border:1px solid var(--line)}
   .status{margin-top:14px;font-size:15px;color:var(--soft)}
   .status.ok{color:var(--moss)} .status.warn{color:var(--warn)}
+  /* текст на листе не совпал с выбранным — объясняем и даём кнопку */
+  .mismatch{margin-top:14px;padding:16px 18px;border-radius:14px;background:#fbf3ea;border:1px solid #ecd6bf;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .mismatch p{margin:0;flex:1 1 260px;font-size:15px;color:var(--ink)}
 
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px}
   .tile{position:relative;aspect-ratio:1;background:#fff;border-radius:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--line);transition:transform .12s,border-color .2s}
   .tile:hover{transform:translateY(-1px);border-color:var(--faint)}
   .tile .g{font-size:34px;line-height:1}
   .tile .gc{position:absolute;inset:0;width:100%;height:100%;border-radius:inherit}
-  .tile .k{position:absolute;left:7px;top:5px;font-size:10px;color:var(--faint)}
-  .tile .n{position:absolute;right:7px;bottom:5px;font-size:10px;color:var(--faint)}
+  .tile .k{position:absolute;left:7px;top:5px;font-size:10px;color:var(--soft)}
+  .tile .n{position:absolute;right:7px;bottom:5px;font-size:10px;color:var(--soft)}
   .tile.auto{border-style:dashed}
   .tile.miss{background:#faf3ec;border-color:#efdcc9;cursor:default}
   .legend{font-size:13px;color:var(--soft);margin:14px 0 0}
@@ -137,7 +143,7 @@
   .buy{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:24px;padding:26px 30px;border-radius:var(--radius);background:var(--mist)}
   .buy .price{font-family:var(--display);font-weight:600;font-size:48px;line-height:1;letter-spacing:-.03em}
   .buy small{display:block;color:var(--soft);font-size:14px;margin-top:6px}
-  footer{padding:48px 0 64px;color:var(--faint);font-size:13px;text-align:center}
+  footer{padding:48px 0 64px;color:var(--soft);font-size:13px;text-align:center}
 
   /* окно правки буквы */
   .modal{position:fixed;inset:0;z-index:50;background:rgba(20,22,18,.35);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:16px}
@@ -180,8 +186,6 @@
     .modal{align-items:flex-end;padding:0} .ed-card{border-radius:22px 22px 0 0;max-height:92vh;padding:20px 16px}
   }
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/opentype.js/1.3.4/opentype.min.js"></script>
 </head>
 <body>
 <header class="hero" id="top">
@@ -228,6 +232,7 @@
   <div id="scanWrap">
     <div class="scanbox"><span class="chip hidden" id="demoChip" data-i18n="demoChip"></span><canvas id="scan"></canvas></div>
     <div class="status" id="status"></div>
+    <div class="mismatch hidden" id="mismatch" role="alert"><p></p><button class="btn" id="mismatchBtn" data-i18n="mmBtn"></button></div>
   </div>
 </div></section>
 
@@ -248,7 +253,7 @@
     <textarea id="previewText" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" rows="2" aria-label="Preview">Hello, world! This is my handwriting.</textarea>
   </div>
   <div class="controls">
-    <label><span data-i18n="lblName"></span> <input type="text" id="fontName" value="My Handwriting"></label>
+    <label><span data-i18n="lblName"></span> <input type="text" id="fontName" value="My Handwriting" maxlength="40"></label>
     <label><span data-i18n="lblSize"></span> <input type="range" id="size" min="20" max="120" value="56"></label>
     <label><span data-i18n="lblTrack"></span> <input type="range" id="track" min="-40" max="120" value="0"></label>
   </div>
@@ -300,10 +305,13 @@
 
 <footer data-i18n="footer"></footer>
 
-<script src="i18n.js?v=1792478972"></script>
-<script src="pipeline.js?v=1792478972"></script>
-<script src="app.js?v=1792478972"></script>
-<script src="editor.js?v=1792478972"></script>
+<!-- библиотеки лежат на сайте (не на чужом CDN) и грузятся после показа страницы -->
+<script src="vendor/d3.min.js" defer></script>
+<script src="vendor/opentype.min.js" defer></script>
+<script src="i18n.js?v=1792494900"></script>
+<script src="pipeline.js?v=1792494900"></script>
+<script src="app.js?v=1792494900"></script>
+<script src="editor.js?v=1792494900"></script>
 <script>
   applyLang();
   // ссылки внутри страницы прокручивают плавно и не пишут #якорь в адрес —

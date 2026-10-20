@@ -13,14 +13,19 @@ const TEMPLATES = {
     'the quick brown fox jumps over the lazy dog.',
     'well-done, right? yes: wow!',
     'THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG',
+    "0123456789 (it's)",
   ],
   cyrillic: [
     'съешь же ещё этих мягких французских булок, да выпей чаю.',
     'супер-шрифт? да: вау!',
     'СЪЕШЬ ЖЕ ЕЩЁ ЭТИХ МЯГКИХ ФРАНЦУЗСКИХ БУЛОК, ДА ВЫПЕЙ ЧАЮ',
+    '0123456789 (ок)',
   ],
 };
-TEMPLATES.both = [...TEMPLATES.latin, ...TEMPLATES.cyrillic];
+// в «Обе» цифры и скобки нужны один раз
+TEMPLATES.both = [...TEMPLATES.latin, ...TEMPLATES.cyrillic.slice(0, 3)];
+// что написано на листе примера (assets/demo-sheet.jpg) — он сделан до строки с цифрами
+const DEMO_TEXT = TEMPLATES.latin.slice(0, 3).join('\n');
 
 // Метрики шрифта (единицы при unitsPerEm = 1000)
 const UPM = 1000, XH = 500, CH = 720;
@@ -45,8 +50,11 @@ function setScript(s) {
   autosize();
 }
 function autosize() { expectedEl.style.height = 'auto'; expectedEl.style.height = expectedEl.scrollHeight + 'px'; }
-expectedEl.addEventListener('input', () => { expectedEl.dataset.own = 1; autosize(); });
-document.querySelectorAll('#scriptSeg button').forEach(b => b.onclick = () => setScript(b.dataset.s));
+// фото уже загружено и человек поправил текст — пересчитываем буквы сами, без повторной загрузки
+let redo;
+const rerun = () => { clearTimeout(redo); if (state.lastImg) redo = setTimeout(() => process(state.lastImg), 900); };
+expectedEl.addEventListener('input', () => { expectedEl.dataset.own = 1; autosize(); rerun(); });
+document.querySelectorAll('#scriptSeg button').forEach(b => b.onclick = () => { setScript(b.dataset.s); rerun(); });
 setScript('latin');
 
 /* ---------- Шаг 2: загрузка ---------- */
@@ -90,7 +98,7 @@ async function runDemo({ tour = false } = {}) {
   setStatus('stDemo');
   const url = 'assets/demo-sheet.jpg', prevFam = state.previewFamily;
   const img = new Image(); img.src = url; await img.decode();
-  await process(img);
+  await process(img, DEMO_TEXT);
   if (tour) await openDemo(url, prevFam);
 }
 
@@ -124,8 +132,24 @@ $('#demoGo').onclick = () => { closeDemo(); $('#upload').scrollIntoView(); fileI
 
 function expectedText() { return expectedEl.value; }
 
+/* Текст на листе не совпал с выбранным: буквы могли перепутаться. Говорим, что делать, и даём кнопку */
+function showMismatch(kind) {
+  const box = $('#mismatch');
+  box.classList.toggle('hidden', !kind);
+  if (!kind) return;
+  box.querySelector('p').dataset.i18n = kind === 'other' ? 'mmOther' : 'mmMissing';
+  box.querySelector('p').textContent = t(box.querySelector('p').dataset.i18n);
+}
+$('#mismatchBtn').onclick = () => { setScript('own'); $('#write').scrollIntoView({ behavior: 'smooth' }); };
+
 /* ---------- Обработка изображения ---------- */
-async function process(img) {
+// любая неожиданная ошибка распознавания — понятное сообщение, а не вечное «Ищем буквы…»
+async function process(img, fixedText) {
+  try { await processPhoto(img, fixedText); }
+  catch (e) { console.error(e); setStatus('stError', 'warn'); }
+}
+async function processPhoto(img, fixedText) {
+  state.lastImg = fixedText ? null : img;
   setStatus('stSearching');
   await new Promise(r => setTimeout(r, 30));
   const maxSide = 2000, k = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
@@ -138,18 +162,18 @@ async function process(img) {
   if (!seg) return setStatus('stNoText', 'warn');
   // Выбранный текст всегда можно «натянуть» на пятна, поэтому сверяем фото со всеми шаблонами
   // и берём тот, что совпадает лучше (у верного текста экземпляры одной буквы похожи и резать почти не нужно)
-  const cands = ['latin', 'cyrillic', 'both'].map(k => ({ key: k, text: TEMPLATES[k].join('\n') }));
-  if (state.script === 'own') cands.unshift({ key: 'own', text: expectedText() });
+  const cands = fixedText ? [{ key: state.script, text: fixedText }] : ['latin', 'cyrillic', 'both'].map(k => ({ key: k, text: TEMPLATES[k].join('\n') }));
+  if (state.script === 'own' && !fixedText) cands.unshift({ key: 'own', text: expectedText() });
   for (const c of cands) c.fit = alignText(seg, c.text, W).fit;
-  const best = cands.reduce((a, b) => (b.fit.score < a.fit.score ? b : a));
+  const best = cands.reduce((a, b) => (b.fit.match < a.fit.match ? b : a));
   let note = '', tpl = '';
   // свой текст оставляем, если он не хуже шаблонов; если на листе явно шаблон — переключаем на него
-  const keep = state.script === 'own' && (best.key === 'own' || cands[0].fit.score - best.fit.score <= 0.15);
+  const keep = state.script === 'own' && (best.key === 'own' || cands[0].fit.match - best.fit.match <= 0.3);
   const used = keep ? cands[0] : best;
   if (used.key !== state.script) { note = state.script === 'own' ? 'own' : 'switched'; tpl = used.key; setScript(used.key); }
   const res = alignText(seg, used.text, W);   // заново: разметка строк должна соответствовать выбранному тексту
   if (!res.items.length) return setStatus('stNoText', 'warn');
-  if (!note && res.fit.score > 1.15) note = 'poor';
+  showMismatch(res.warn);
   const chars = [...used.text.replace(/\s+/g, '')];
   state.analysis = res; state.W = W;
   // чистая копия фото — для окна правки (на #scan рисуются рамки)
@@ -168,7 +192,7 @@ async function process(img) {
   const found = res.items.length, ratio = found / res.total;
   const cut = res.items.filter(i => i.split).length;
   const low = ratio < 0.85;
-  setStatus('stFound', low || note === 'poor' ? 'warn' : 'ok', { found, total: res.total, kinds: Object.keys(state.instances).length, cut, low, note, tpl });
+  setStatus('stFound', low || res.warn ? 'warn' : 'ok', { found, total: res.total, kinds: Object.keys(state.instances).length, cut, low, note, tpl });
 
   buildCharset(chars);
   rebuild();
@@ -176,11 +200,15 @@ async function process(img) {
 }
 
 /* ---------- Сборка шрифта ---------- */
+// Знаки, которые сайт собирает сам из уже написанных: кавычки из апострофа, тире из дефиса,
+// многоточие из точки, точку с запятой из двоеточия и запятой. В сетке они с пунктиром, как буквы из пары
+const DERIVED = { '"': ["'"], '‘': ["'"], '’': ["'"], '“': ["'"], '”': ["'"], '—': ['-'], '–': ['-'], '…': ['.'], ';': [':', ','] };
 function buildCharset(chars) {
   const set = new Set();
   for (const c of chars) { set.add(c); if (isLower(c)) set.add(c.toUpperCase()); if (isUpper(c)) set.add(c.toLowerCase()); }
+  for (const [d, need] of Object.entries(DERIVED)) if (need.every(c => set.has(c))) set.add(d);
   state.charset = [...set].sort((a, b) => {
-    const r = c => (PUNCT.has(c) ? 3 : isUpper(c) ? 1 : 2) * 10000 + c.codePointAt(0);
+    const r = c => (!/\p{L}/u.test(c) ? (/\d/.test(c) ? 2.5 : 3) : isUpper(c) ? 1 : 2) * 10000 + c.codePointAt(0);
     return r(a) - r(b);
   });
 }
@@ -197,7 +225,30 @@ function glyphSource(ch) {
     const o = state.instances[ch.toUpperCase()];
     return { rings: o[state.choice[ch.toUpperCase()] % o.length].rings, sc: XH / CH, auto: true, from: ch.toUpperCase() };
   }
+  if (DERIVED[ch]) return derivedSource(ch);
   return null;
+}
+
+// производный знак: копии контуров исходного знака, сдвинутые или растянутые (в единицах шрифта)
+function derivedSource(ch) {
+  const base = c => { const o = state.instances[c]; return o && o[state.choice[c] % o.length].rings; };
+  const span = rings => { let lo = 1e9, hi = -1e9, bot = 1e9, top = -1e9; for (const r of rings) for (const [x, y] of r) { lo = Math.min(lo, x); hi = Math.max(hi, x); bot = Math.min(bot, y); top = Math.max(top, y); } return { lo, hi, bot, top, w: hi - lo }; };
+  const move = (rings, dx, dy, kx = 1, x0 = 0) => rings.map(r => r.map(([x, y]) => [x0 + (x - x0) * kx + dx, y + dy]));
+  const from = DERIVED[ch][0], a = base(from); if (!a) return null;
+  const b = span(a);
+  let rings;
+  if ('"“”'.includes(ch)) rings = [...a, ...move(a, b.w + 70, 0)];
+  else if ('‘’'.includes(ch)) rings = a;
+  else if (ch === '—') rings = move(a, 0, 0, 2.3, b.lo);
+  else if (ch === '–') rings = move(a, 0, 0, 1.5, b.lo);
+  else if (ch === '…') rings = [...a, ...move(a, b.w + 90, 0), ...move(a, 2 * (b.w + 90), 0)];
+  else if (ch === ';') {
+    // верхняя точка двоеточия над запятой
+    const colon = a, comma = base(','); if (!comma) return null;
+    const top = colon.reduce((m, r) => (span([r]).top > span([m]).top ? r : m)), t = span([top]), c = span(comma);
+    rings = [...comma, ...move([top], (c.lo + c.hi) / 2 - (t.lo + t.hi) / 2, 0)];
+  }
+  return { rings, sc: 1, auto: true, from };
 }
 
 // горизонтальный размах контура в полосе 0…top (точки на рёбрах берём с шагом, чтобы не пропустить длинные отрезки)
@@ -245,7 +296,13 @@ function rebuild() {
     const g = makeGlyph(ch, src); glyphs.push(g);
     const bb = g.getBoundingBox(); yMax = Math.max(yMax, bb.y2 + 20); yMin = Math.min(yMin, bb.y1 - 20);
   }
-  state.font = new opentype.Font({ familyName: name, styleName: 'Regular', unitsPerEm: UPM, ascender: Math.round(yMax), descender: Math.round(yMin), glyphs });
+  const year = new Date().getFullYear();
+  state.font = new opentype.Font({
+    familyName: name, styleName: 'Regular', unitsPerEm: UPM, ascender: Math.round(yMax), descender: Math.round(yMin), glyphs,
+    designer: 'inkfont', manufacturer: 'inkfont', version: '1.0',
+    copyright: `© ${year} the owner of this handwriting`, description: 'Handwriting font made with inkfont',
+    license: 'The owner of this handwriting may use this font for any personal or commercial purpose.',
+  });
   const fam = 'inkfont-' + Date.now();
   const face = new FontFace(fam, state.font.toArrayBuffer());
   face.load().then(f => {
