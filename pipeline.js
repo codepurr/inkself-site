@@ -17,6 +17,9 @@ const SMALL_PUNCT = new Set(".,:;-'");
 function cw(c) {
   if ('.,:;!\''.includes(c)) return 0.25;
   if (c === '?') return 0.5;
+  if (c === '1') return 0.4;
+  if ('()'.includes(c)) return 0.36;
+  if (/[0-9]/.test(c)) return 0.62;
   if (c === '-') return 0.45;
   if ('il'.includes(c)) return 0.32;
   if (c === 'j') return 0.4;
@@ -61,6 +64,12 @@ function segment(data, W, H) {
   medH = pct(comps.filter(c => c.area >= 3 * minArea).map(c => c.h), 0.6);
   const lines = buildLines(comps, medH, W);
   lines.forEach(L => { estimateSlant(L, W); L.clusters = clusterLine(L, W); });
+  // Масштаб почерка строки. Высота пятен не годится: в прописи пятно — целое слово, и строка
+  // без хвостатых букв выходит вдвое «ниже» соседней. Берём общий размер листа и поправляем его
+  // по высоте основной полосы букв (там, где строчные без хвостов), — она от слов не зависит
+  lines.forEach(L => L.coreH = median(L.big.map(c => c.core1 - c.core0)));
+  const gH = median(lines.map(L => L.medH)), gC = median(lines.map(L => L.coreH));
+  lines.forEach(L => L.unit = gC > 0 ? gH * L.coreH / gC : L.medH);
   return { lines, comps };
 }
 
@@ -446,9 +455,9 @@ function alignChars(obs, text, lines, W) {
   const words = text.split(/\s+/).filter(Boolean), chars = [], sp = [];
   words.forEach((w, wi) => [...w].forEach((c, ci) => { chars.push(c); sp.push(ci === 0 && wi > 0); }));
   let spanSum = 0;
-  for (const o of obs) spanSum += (Math.max(...o.clusters.map(k => k.sx1)) - Math.min(...o.clusters.map(k => k.sx0)) + 1) / lines[o.line].medH;
+  for (const o of obs) spanSum += (Math.max(...o.clusters.map(k => k.sx1)) - Math.min(...o.clusters.map(k => k.sx0)) + 1) / lines[o.line].unit;
   const rho = spanSum / chars.reduce((a, c) => a + cw(c), 0);
-  lines.forEach(L => L.alpha = rho * L.medH);
+  lines.forEach(L => L.alpha = rho * L.unit);
   lines.forEach((L, li) => L.clusters.forEach(k => { k.line = li; }));
   const tw = []; let j0 = 0;
   for (const w of words) { tw.push({ chars: [...w], j0 }); j0 += [...w].length; }
