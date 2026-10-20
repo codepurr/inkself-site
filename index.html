@@ -54,6 +54,11 @@
   .hero::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,18,10,.55) 0%,rgba(14,18,10,.15) 45%,rgba(14,18,10,.05) 70%,rgba(14,18,10,.25) 100%)}
   .hero>*{position:relative}
   .hero>nav{position:absolute}
+  /* дудлы на фото: позиции в долях экрана, за текстом, не перехватывают нажатия; штриховка уходит за правый край */
+  .hero>.doodle{position:absolute;z-index:0;height:auto;pointer-events:none;user-select:none;filter:drop-shadow(0 1px 8px rgba(14,18,10,.25))}
+  .d-blot{width:clamp(42px,4.6vw,76px);left:71%;top:15%}
+  .d-hatch{width:clamp(34px,3.6vw,60px);right:-14px;top:20%}
+  .d-flower{width:clamp(34px,3.8vw,62px);left:8.5%;top:45%}
   /* размер заголовка зависит и от ширины, и от высоты окна — весь первый экран помещается без прокрутки */
   h1{font-family:var(--display);font-weight:600;font-size:clamp(40px,min(7.4vw,11svh),108px);line-height:.98;letter-spacing:-.035em;margin:0 0 22px}
   /* «your font» — от руки: высота строчных совпадает с набранной строкой, петли y и f выходят за строку, не раздвигая заголовок */
@@ -172,6 +177,7 @@
   @media (max-width:600px){
     nav{padding:20px} .nav-r{gap:12px} nav a.go{padding:10px 16px}
     h1{font-size:min(14vw,8.5svh)}
+    .d-blot{left:66%;top:13%} .d-hatch{top:24%} .d-flower{left:9%;top:auto;bottom:11%}
     section.step{padding-top:88px} section.step:last-of-type{padding-bottom:88px}
     #previewText{font-size:40px} .card,.preview,.buy{padding:20px} .sheet{padding:18px 20px}
     .modal{align-items:flex-end;padding:0} .ed-card{border-radius:22px 22px 0 0;max-height:92vh;padding:20px 16px}
@@ -189,6 +195,10 @@
       <a class="go" href="#write" data-i18n="navGo">Создать шрифт</a>
     </div>
   </nav>
+  <!-- дудлы от руки: 4 — клякса, 2 — штриховка у края, 6 — цветок -->
+  <img class="doodle d-blot" src="assets/doodles/blot.png" width="198" height="199" alt="" aria-hidden="true">
+  <img class="doodle d-hatch" src="assets/doodles/hatch.png" width="138" height="191" alt="" aria-hidden="true">
+  <img class="doodle d-flower" src="assets/doodles/flower.png" width="120" height="156" alt="" aria-hidden="true">
   <h1>Your handwriting,<br><img class="hand-img" src="assets/your-font.png" width="1062" height="534" alt="your font."></h1>
   <p class="lead" data-i18n="lead"></p>
   <a class="ring-down" href="#write" data-i18n-aria="startAria">
