@@ -60,10 +60,13 @@
   h1 .hand-img{display:block;width:3.4em;height:auto;margin:-.06em auto -.22em;filter:drop-shadow(0 1px 10px rgba(14,18,10,.22))}
   .lead{font-size:clamp(16px,1.6vw,19px);max-width:520px;margin:0 auto 22px;opacity:.92}
   /* кнопка вниз: белая стрелка в круге, нарисованном от руки (без подложки) */
-  .ring-down{position:relative;width:80px;height:75px;display:grid;place-items:center;color:#fff;text-decoration:none;transition:transform .25s}
+  .ring-down{position:relative;width:80px;height:75px;display:grid;place-items:center;color:#fff;text-decoration:none}
   .ring-down .ring{position:absolute;inset:0;width:100%;height:100%;filter:drop-shadow(0 1px 8px rgba(14,18,10,.25))}
   .ring-down svg{position:relative;filter:drop-shadow(0 1px 6px rgba(14,18,10,.3))}
-  .ring-down:hover{transform:translateY(3px)}
+  /* при наведении сдвигаются кольцо и стрелка, а не сама ссылка: зона наведения стоит на месте и не дёргается у края;
+     will-change держит их отдельным слоем, чтобы после возврата они не прыгали ещё раз на полпикселя */
+  .ring-down>*{transition:transform .25s;will-change:transform}
+  .ring-down:hover>*{transform:translateY(3px)}
   .hero .demo{margin-top:12px;background:none;border:0;color:#fff;font:inherit;font-size:15px;opacity:.9;cursor:pointer;text-decoration:underline;text-underline-offset:4px}
 
   /* кнопки */
