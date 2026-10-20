@@ -83,43 +83,12 @@ function setStatus(key, cls = '', vars = {}) {
   const s = $('#status'); s.textContent = t(key, vars); s.className = 'status ' + cls; $('#scanWrap').style.display = 'block';
 }
 
-/* Демо: рисуем «почерк» рукописным шрифтом с дрожанием, как будто фото листа */
+/* Пример: настоящий лист, написанный от руки (латиница), и шрифт, собранный из него */
 async function runDemo({ tour = false } = {}) {
   setDemo(true); clearInterval(typing);
+  setScript('latin');
   setStatus('stDemo');
-  await document.fonts.load('64px Neucha');
-  const lines = expectedText().split('\n').filter(l => l.trim());
-  const W = 1800, size = 66, lh = size * 1.9;
-  // перенос длинных строк
-  const c = document.createElement('canvas'), ctx = c.getContext('2d');
-  ctx.font = `${size}px Neucha`;
-  const rows = [];
-  for (const line of lines) {
-    let cur = '';
-    for (const word of line.split(' ')) {
-      const t = cur ? cur + ' ' + word : word;
-      if (measure(ctx, t) > W - 240 && cur) { rows.push(cur); cur = word; } else cur = t;
-    }
-    rows.push(cur);
-  }
-  c.width = W; c.height = Math.round(180 + rows.length * lh + 80);
-  const g = ctx.createLinearGradient(0, 0, W, c.height);
-  g.addColorStop(0, '#fbfaf6'); g.addColorStop(1, '#e9e6de');
-  ctx.fillStyle = g; ctx.fillRect(0, 0, W, c.height);
-  ctx.font = `${size}px Neucha`; ctx.fillStyle = '#22231f'; ctx.textBaseline = 'alphabetic';
-  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  rows.forEach((row, i) => {
-    let x = 120 + rnd() * 20; const y = 160 + i * lh;
-    for (const ch of row) {
-      const w = ctx.measureText(ch).width;
-      if (ch !== ' ') {
-        ctx.save(); ctx.translate(x + w / 2, y + (rnd() - .5) * 4); ctx.rotate((rnd() - .5) * 0.09);
-        ctx.fillText(ch, -w / 2, 0); ctx.restore();
-      }
-      x += w + size * 0.1;
-    }
-  });
-  const url = c.toDataURL('image/png'), prevFam = state.previewFamily;
+  const url = 'assets/demo-sheet.jpg', prevFam = state.previewFamily;
   const img = new Image(); img.src = url; await img.decode();
   await process(img);
   if (tour) await openDemo(url, prevFam);
@@ -140,9 +109,8 @@ async function openDemo(url, prevFam) {
   }
   const out = $('#demoType'); out.style.fontFamily = `'${state.previewFamily}', -apple-system, sans-serif`;
   $('#demoModal').classList.remove('hidden'); document.body.style.overflow = 'hidden';
-  // фраза на том же алфавите, что и демо-лист, иначе часть букв будет системным шрифтом
-  const cyr = state.script === 'cyrillic' || (state.script === 'both' && LANG === 'ru');
-  const text = cyr ? 'Это мой новый шрифт.' : 'This is my new font.';
+  // лист примера латинский, поэтому и фраза латиницей: иначе часть букв выйдет системным шрифтом
+  const text = 'This is my new font.';
   clearInterval(typing); out.textContent = ''; let i = 0;
   await sleep(500);
   typing = setInterval(() => { out.textContent = text.slice(0, ++i); if (i >= text.length) clearInterval(typing); }, 60);
@@ -153,7 +121,6 @@ $('#demoModal').addEventListener('click', e => e.target === $('#demoModal') && c
 document.addEventListener('keydown', e => e.key === 'Escape' && !$('#demoModal').classList.contains('hidden') && closeDemo());
 // из окна демо — сразу к выбору своего фото (в том же нажатии, иначе Safari не откроет выбор файла)
 $('#demoGo').onclick = () => { closeDemo(); $('#upload').scrollIntoView(); fileIn.click(); };
-function measure(ctx, t) { return [...t].reduce((s, ch) => s + ctx.measureText(ch).width + 6.6, 0); }
 
 function expectedText() { return expectedEl.value; }
 
