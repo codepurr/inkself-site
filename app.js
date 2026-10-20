@@ -80,6 +80,8 @@ function setDemo(on) {
 
 function loadFile(f) {
   setDemo(false); clearInterval(typing);
+  state.noDigits = false; state.digitsOk = false;   // новое фото — вопрос про цифры заново
+  $('#saved').classList.add('hidden');
   const img = new Image();
   img.onload = () => process(img);
   img.onerror = () => setStatus('stOpenFail', 'warn');
@@ -136,6 +138,27 @@ $('#demoGo').onclick = () => { closeDemo(); $('#upload').scrollIntoView(); fileI
 
 function expectedText() { return expectedEl.value; }
 
+// строка образца с цифрами (её чаще всего не пишут или пишут вместо неё другое)
+const digitLine = key => (TEMPLATES[key] || []).find(l => /[0-9]/.test(l));
+function showDigitCheck(items, W) {
+  const box = $('#digitCheck'), tiles = $('#dcTiles');
+  box.classList.toggle('hidden', !items.length);
+  tiles.innerHTML = '';
+  for (const it of items.sort((a, b) => a.char.localeCompare(b.char))) {
+    const cv = document.createElement('canvas'), S = 44, dpr = window.devicePixelRatio || 1;
+    cv.width = cv.height = S * dpr; cv.style.width = cv.style.height = S + 'px';
+    const x = cv.getContext('2d'); x.scale(dpr, dpr); x.fillStyle = '#fff'; x.fillRect(0, 0, S, S);
+    const b = it.box, k = (S - 8) / Math.max(b.x1 - b.x0 + 1, b.y1 - b.y0 + 1);
+    const ox = (S - (b.x1 - b.x0 + 1) * k) / 2, oy = (S - (b.y1 - b.y0 + 1) * k) / 2;
+    x.fillStyle = '#1b1d18';
+    for (const p of it.px) x.fillRect(ox + (p % W - b.x0) * k, oy + ((p / W | 0) - b.y0) * k, Math.max(1, k), Math.max(1, k));
+    const cell = document.createElement('figure'); cell.innerHTML = '<figcaption></figcaption>';
+    cell.querySelector('figcaption').textContent = it.char; cell.prepend(cv); tiles.appendChild(cell);
+  }
+}
+$('#dcYes').onclick = () => { state.digitsOk = true; $('#digitCheck').classList.add('hidden'); if (state.work) { state.work.digitsOk = true; saveWork(); } };
+$('#dcNo').onclick = () => { state.noDigits = true; if (state.work) state.work.noDigits = true; if (state.lastImg) process(state.lastImg); };
+
 /* Текст на листе не совпал с выбранным: буквы могли перепутаться. Говорим, что делать, и даём кнопку */
 function showMismatch(kind, line) {
   const box = $('#mismatch'), p = box.querySelector('p');
@@ -175,8 +198,10 @@ async function processPhoto(img, fixedText, restore) {
   // раздал бы её знаки чужим кускам и испортил соседние буквы. Пробуем образец без каждой строки
   // и берём вариант без строки, только если он заметно лучше
   if (!fixedText && best.key !== 'own') {
-    const lines = TEMPLATES[best.key];
-    for (let i = 0; i < lines.length; i++) {
+    const lines = TEMPLATES[best.key], dl = digitLine(best.key);
+    // человек сам сказал, что строки с цифрами на листе нет
+    if (state.noDigits && dl) best = { key: best.key, text: lines.filter(l => l !== dl).join('\n'), dropped: dl };
+    else for (let i = 0; i < lines.length; i++) {
       const v = { key: best.key, text: lines.filter((_, k) => k !== i).join('\n'), dropped: lines[i] };
       v.fit = alignText(seg, v.text, W).fit;
       if (v.fit.match < best.fit.match - 0.15 && (!best.dropped || v.fit.match < best.fit.match)) best = v;
@@ -190,6 +215,9 @@ async function processPhoto(img, fixedText, restore) {
   const res = alignText(seg, used.text, W);   // заново: разметка строк должна соответствовать выбранному тексту
   if (!res.items.length) return setStatus('stNoText', 'warn');
   showMismatch(res.warn === 'other' ? 'other' : used.dropped ? 'line' : res.warn, used.dropped);
+  // Цифры на листе по форме не отличить от букв (0 и O, 1 и l, 5 и S): если вместо строки с цифрами
+  // написано другое, сайт натянет цифры на чужие буквы. Поэтому показываем, что он принял за цифры, и спрашиваем
+  showDigitCheck(!fixedText && used.key !== 'own' && !used.dropped && !state.digitsOk && digitLine(used.key) ? res.items.filter(i => /[0-9]/.test(i.char)) : [], W);
   // знаки пропущенной строки остаются в сетке бежевыми: видно, чего в шрифте нет
   const chars = [...(used.dropped ? TEMPLATES[used.key].join('') : used.text).replace(/\s+/g, '')];
   state.analysis = res; state.W = W;
@@ -224,7 +252,8 @@ function trackWork(img, fixedText, restore) {
   if (restore) { state.work = restore; state.workImg = img; applyEdits(restore.edits); return; }
   const same = state.work && state.workImg === img;
   state.work = { v: 1, photo: same ? state.work.photo : null, script: state.script, text: expectedText(), edits: [],
-    fontName: $('#fontName').value, purchased: same ? state.work.purchased : null, pending: null };
+    fontName: $('#fontName').value, purchased: same ? state.work.purchased : null, pending: null,
+    noDigits: !!state.noDigits, digitsOk: !!state.digitsOk };
   state.workImg = img;
   if (state.work.photo) return saveWork();
   // PNG без потерь: при восстановлении сайт видит ровно те же пиксели и находит те же буквы
@@ -233,6 +262,7 @@ function trackWork(img, fixedText, restore) {
 }
 
 async function restoreWork(w) {
+  state.noDigits = !!w.noDigits; state.digitsOk = !!w.digitsOk;
   if (w.script === 'own') { state.ownText = w.text; expectedEl.dataset.own = 1; }
   setScript(w.script || 'latin', false);
   if (w.fontName) $('#fontName').value = w.fontName;

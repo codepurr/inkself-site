@@ -121,6 +121,12 @@
   /* текст на листе не совпал с выбранным — объясняем и даём кнопку */
   .mismatch{margin-top:14px;padding:16px 18px;border-radius:14px;background:#fbf3ea;border:1px solid #ecd6bf;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
   .mismatch p{margin:0;flex:1 1 260px;font-size:15px;color:var(--ink)}
+  /* проверка цифр: куски с листа, которые сайт принял за 0–9 */
+  .dc-tiles{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 100%}
+  .dc-tiles figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:2px}
+  .dc-tiles canvas{border:1px solid var(--line);border-radius:8px;background:#fff}
+  .dc-tiles figcaption{font-size:12px;color:var(--soft)}
+  .dc-btns{display:flex;gap:8px;flex-wrap:wrap}
   /* работа восстановлена с этого устройства; кнопка «удалить» — как ссылка */
   .saved{margin:12px 0 0;font-size:14px;color:var(--soft)}
   .link{appearance:none;border:0;background:none;padding:0;font:inherit;color:var(--ink);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
@@ -240,6 +246,8 @@
     <div class="scanbox"><span class="chip hidden" id="demoChip" data-i18n="demoChip"></span><canvas id="scan"></canvas></div>
     <div class="status" id="status"></div>
     <div class="mismatch hidden" id="mismatch" role="alert"><p></p><button class="btn" id="mismatchBtn" data-i18n="mmBtn"></button></div>
+    <div class="mismatch hidden" id="digitCheck"><p data-i18n="dcQ"></p><div class="dc-tiles" id="dcTiles"></div>
+      <div class="dc-btns"><button class="btn ghost" id="dcYes" data-i18n="dcYes"></button><button class="btn" id="dcNo" data-i18n="dcNo"></button></div></div>
     <p class="saved hidden" id="saved"><span data-i18n="restored"></span> <button class="link" id="delWork" data-i18n="delWork"></button></p>
   </div>
 </div></section>
@@ -317,11 +325,11 @@
 <!-- библиотеки лежат на сайте (не на чужом CDN) и грузятся после показа страницы -->
 <script src="vendor/d3.min.js" defer></script>
 <script src="vendor/opentype.min.js" defer></script>
-<script src="i18n.js?v=1792499114"></script>
-<script src="pipeline.js?v=1792499114"></script>
-<script src="store.js?v=1792499114"></script>
-<script src="app.js?v=1792499114"></script>
-<script src="editor.js?v=1792499114"></script>
+<script src="i18n.js?v=1792500175"></script>
+<script src="pipeline.js?v=1792500175"></script>
+<script src="store.js?v=1792500175"></script>
+<script src="app.js?v=1792500175"></script>
+<script src="editor.js?v=1792500175"></script>
 <script>
   applyLang();
   // ссылки внутри страницы прокручивают плавно и не пишут #якорь в адрес —

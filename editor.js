@@ -1,4 +1,5 @@
-/* Окно ручной правки буквы: фото вокруг буквы, две «косые» границы (по наклону почерка), превью. */
+/* Окно ручной правки буквы: фото вокруг буквы, две «косые» границы (по наклону почерка), превью.
+   Нажатие на кусок чернил внутри границ убирает его из буквы (обрывок соседней строки, клякса), повторное — возвращает. */
 const ed = { el: $('#editor'), cv: $('#edCanvas'), gl: $('#edGlyph') };
 
 function openEditor(ch, shownAs) {
@@ -18,6 +19,7 @@ function loadVariant() {
   if (!it.orig) it.orig = sxRange(it.px, ed.L);
   [ed.a, ed.b] = sxRange(it.px, ed.L);
   ed.pool = linePool(it, ed.L);
+  ed.off = new Set(it.off || []);
   // кадр: буква плюс соседи по бокам, по высоте — вся строка с выносными
   const L = ed.L, m = 1.3 * L.medH, W = state.W, H = state.photo.height, mid = L.centerAt(it.cx);
   ed.R = {
@@ -50,14 +52,16 @@ function draw() {
   x.fillStyle = '#fff'; x.fillRect(R.x0, R.y0, rw, rh);
   x.globalAlpha = 0.28; x.drawImage(state.photo, 0, 0); x.globalAlpha = 1;
 
-  // чернила: тёмным — что попадёт в шрифт, серым — соседи
+  // чернила: тёмным — что попадёт в шрифт, серым — соседи, бледно-розовым — убранные нажатием куски
   const W = state.W, L = ed.L, img = new ImageData(rw, rh), sel = [];
+  ed.band = new Set();
   for (const c of ed.pool) for (const p of c.px) {
     const px = p % W, py = p / W | 0;
     if (px < R.x0 || px > R.x1 || py < R.y0 || py > R.y1) continue;
-    const s = L.shx(p), on = s >= ed.a && s <= ed.b, o = 4 * ((py - R.y0) * rw + (px - R.x0));
-    if (on) sel.push(p);
-    img.data.set(on ? [27, 29, 24, 255] : [200, 201, 193, 255], o);
+    const s = L.shx(p), inBand = s >= ed.a && s <= ed.b, off = inBand && ed.off.has(p), o = 4 * ((py - R.y0) * rw + (px - R.x0));
+    if (inBand) ed.band.add(p);
+    if (inBand && !off) sel.push(p);
+    img.data.set(off ? [232, 170, 160, 255] : inBand ? [27, 29, 24, 255] : [200, 201, 193, 255], o);
   }
   const off = document.createElement('canvas'); off.width = rw; off.height = rh; off.getContext('2d').putImageData(img, 0, 0);
   x.imageSmoothingEnabled = false; x.drawImage(off, R.x0, R.y0);
@@ -93,8 +97,33 @@ function toSheared(ev) {
   const ix = ed.R.x0 + (ev.clientX - r.left) / ed.k, iy = ed.R.y0 + (ev.clientY - r.top) / ed.k;
   return ix + (iy - ed.L.baseCy) * ed.L.t;
 }
+// кусок чернил внутри границ под пальцем: связная область выбранных пикселей рядом с точкой нажатия
+function pieceAt(ev) {
+  const r = ed.cv.getBoundingClientRect(), W = state.W;
+  const ix = Math.round(ed.R.x0 + (ev.clientX - r.left) / ed.k), iy = Math.round(ed.R.y0 + (ev.clientY - r.top) / ed.k);
+  const rad = Math.max(2, Math.round(8 / ed.k));
+  let start = -1;
+  for (let d = 0; d <= rad && start < 0; d++) for (let dy = -d; dy <= d && start < 0; dy++) for (let dx = -d; dx <= d; dx++) {
+    const p = (iy + dy) * W + ix + dx; if (ed.band.has(p)) { start = p; break; }
+  }
+  if (start < 0) return null;
+  const seen = new Set([start]), st = [start];
+  while (st.length) {
+    const p = st.pop();
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const q = p + dy * W + dx; if (ed.band.has(q) && !seen.has(q)) { seen.add(q); st.push(q); } }
+  }
+  return seen;
+}
 ed.cv.addEventListener('pointerdown', ev => {
   const s = toSheared(ev);
+  // у самой границы (или у ручки) — тянем её; на куске чернил между границами — убираем или возвращаем кусок
+  const near = Math.min(Math.abs(s - ed.a), Math.abs(s - ed.b)) * ed.k < 22;
+  const piece = !near && pieceAt(ev);
+  if (piece) {
+    const wasOff = [...piece].some(p => ed.off.has(p));
+    for (const p of piece) wasOff ? ed.off.delete(p) : ed.off.add(p);
+    ed.drag = null; draw(); return;
+  }
   ed.drag = Math.abs(s - ed.a) <= Math.abs(s - ed.b) ? 'a' : 'b';
   ed.cv.setPointerCapture(ev.pointerId); move(s);
 });
@@ -108,7 +137,7 @@ function move(s) {
 
 $('#edPrev').onclick = () => { const n = state.instances[ed.ch].length; ed.idx = (ed.idx - 1 + n) % n; loadVariant(); };
 $('#edNext').onclick = () => { ed.idx = (ed.idx + 1) % state.instances[ed.ch].length; loadVariant(); };
-$('#edReset').onclick = () => { [ed.a, ed.b] = ed.it.orig; draw(); };
+$('#edReset').onclick = () => { [ed.a, ed.b] = ed.it.orig; ed.off.clear(); draw(); };
 $('#edClose').onclick = closeEditor;
 ed.el.addEventListener('click', ev => ev.target === ed.el && closeEditor());
 document.addEventListener('keydown', ev => {
@@ -122,11 +151,13 @@ $('#edDrop').onclick = () => {
   state.choice[ed.ch] = 0; rebuild(); closeEditor();
 };
 $('#edApply').onclick = () => {
-  const n = recut(ed.it, ed.a, ed.b, ed.L, state.W);
+  // убранные куски запоминаем только внутри границ — остальное и так не войдёт
+  const off = new Set([...ed.off].filter(p => ed.band.has(p)));
+  const n = recut(ed.it, ed.a, ed.b, ed.L, state.W, off);
   const inst = n && traceItem(n, ed.L, state.W);
   if (!inst) { $('#edSub').textContent = t('edEmpty'); return; }
-  n.orig = ed.it.orig; inst.item = n;
-  logEdit({ op: 'cut', ch: ed.ch, pos: ed.it.idx, a: ed.a, b: ed.b });
+  n.orig = ed.it.orig; n.off = [...off]; inst.item = n;
+  logEdit({ op: 'cut', ch: ed.ch, pos: ed.it.idx, a: ed.a, b: ed.b, off: [...off] });
   logEdit({ op: 'choose', ch: ed.ch, pos: ed.it.idx });
   state.instances[ed.ch][ed.idx] = inst;
   state.choice[ed.ch] = ed.idx;

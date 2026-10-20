@@ -335,7 +335,17 @@ function buildLines(comps, medH, W) {
       const dx = Math.max(0, b.x0 - s.x1, s.x0 - b.x1), dy = Math.max(0, b.y0 - s.y1, s.y0 - b.y1);
       const d = dx + 1.5 * dy; if (d < bd) { bd = d; best = b; }
     }
-    if (best && bd < 2.5 * medH) best._line.small.push(s);
+    if (!best || bd >= 2.5 * medH) continue;
+    // обрывок соседней строки (кусок «w», отпавший от слова) не должен уйти к той строке, где просто ближе
+    // большое пятно: если по высоте он явно сидит в другой строке, отдаём его туда
+    let L = best._line;
+    const own = Math.abs(s.cy - L.centerAt(s.cx));
+    for (const M of lines) {
+      if (M === L || s.cx < M.x0 - medH || s.cx > M.x1 + medH) continue;
+      const d = Math.abs(s.cy - M.centerAt(s.cx));
+      if (d < 0.5 * own && d < 0.6 * M.medH) L = M;
+    }
+    L.small.push(s);
   }
   // высота строки — 75-й перцентиль: обрывки и точки её не занижают; слишком высокие пятна (край книги) — прочь
   for (const L of lines) {
@@ -916,8 +926,8 @@ function sxRange(px, L) {
   for (const p of px) { const x = L.shx(p); if (x < a) a = x; if (x > b) b = x; }
   return [a, b];
 }
-function recut(it, a, b, L, W) {
+function recut(it, a, b, L, W, off) {
   const px = [];
-  for (const c of linePool(it, L)) for (const p of c.px) { const x = L.shx(p); if (x >= a && x <= b) px.push(p); }
+  for (const c of linePool(it, L)) for (const p of c.px) { const x = L.shx(p); if (x >= a && x <= b && !(off && off.has(p))) px.push(p); }
   return px.length ? Object.assign(mkItem(it.char, px, it.line, it.q, it.split, W), { idx: it.idx }) : null;
 }

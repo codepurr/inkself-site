@@ -35,8 +35,8 @@ function applyEdits(edits) {
     else if (e.op === 'choose') state.choice[e.ch] = i;
     else if (e.op === 'cut') {
       const it = list[i].item, L = state.analysis.lines[it.line];
-      const n = recut(it, e.a, e.b, L, W), inst = n && traceItem(n, L, W);
-      if (inst) { n.orig = it.orig || sxRange(it.px, L); inst.item = n; list[i] = inst; }
+      const off = new Set(e.off || []), n = recut(it, e.a, e.b, L, W, off), inst = n && traceItem(n, L, W);
+      if (inst) { n.orig = it.orig || sxRange(it.px, L); n.off = [...off]; inst.item = n; list[i] = inst; }
     }
   }
 }
