@@ -394,7 +394,12 @@ function clusterLine(L, W) {
       const tol = 0.12 * lmh, mid = L.centerAt(s.cx);
       const above = s.y1 <= top + tol && s.cy < mid && top - s.y1 < 1.1 * lmh;
       const below = s.y0 >= bot - tol && bot - top > 0.4 * lmh && s.y0 - bot < 0.8 * lmh && s.y1 < mid + 0.6 * lmh;
-      if (above || below) { k.comps.push(s); Object.assign(k, mk(k.comps)); done = true; break; }
+      if (above || below) {
+        k.comps.push(s); Object.assign(k, mk(k.comps));
+        // точка над буквой — примета i, j, ё, й и букв с надстрочным знаком (сопоставление это учитывает)
+        if (above && s.w < 0.3 * lmh && s.h < 0.3 * lmh) k.dotAbove = (k.dotAbove || 0) + 1;
+        done = true; break;
+      }
     }
     if (!done) loose.push(s);
   }
@@ -651,6 +656,9 @@ function dpWords(obs, tw, lines) {
   return { cost: dp[P * T1 + T], groups, matches };
 }
 
+const DOT_W = 1.5;
+// буквы, у которых сверху отдельная точка или знак: i j ё й и всё с диакритикой (é, ü, ï…)
+const hasDot = c => 'ijёйЁЙ'.includes(c) || (c.normalize('NFD').length > 1 && c.normalize('NFD')[0] !== c);
 function dpChars(cl, chars, sp, lines) {
   const m = cl.length, n = chars.length, INF = 1e18, N1 = n + 1;
   const pre = [0]; chars.forEach((c, i) => pre.push(pre[i] + cw(c)));
@@ -662,6 +670,10 @@ function dpChars(cl, chars, sp, lines) {
     const ch = chars[j];
     // двоеточие и точка с запятой — две отметки одна над другой, по высоте почти как строчная буква
     if (ch === ':' || ch === ';') return k.h > 0.95 * lmh ? 2 : 0;
+    // «?» и «!» — высокий штрих (точка у них внизу); одна точка этими знаками быть не может
+    if ((ch === '?' || ch === '!') && k.h < 0.45 * lmh) return 2;
+    // скобка — высокий узкий штрих: низкое или широкое пятно скобкой не бывает
+    if ((ch === '(' || ch === ')') && (k.h < 0.7 * lmh || k.sw > 0.6 * k.h)) return 2;
     if (SMALL_PUNCT.has(ch)) return (k.h > 0.6 * lmh ? 2 : 0) + (ch === '-' && k.h > 0.3 * lmh ? 1.2 : 0);
     if (!PUNCT.has(ch) && k.h < 0.28 * lmh) return 2;
     return 0;
@@ -684,7 +696,9 @@ function dpChars(cl, chars, sp, lines) {
       for (let k = 1; k <= Math.min(10, n - j); k++) {
         const inside = spc[j + k] - spc[j + 1];
         const dev = (cl[i].sw - al * (pre[j + k] - pre[j])) / u;
-        const c = Math.min(4, 0.5 * dev * dev) + (k > 1 ? 0.35 + 0.1 * (k - 1) : 0) + 2.5 * inside + shape(cl[i], j, k, L.medH) + c0;
+        let c = Math.min(4, 0.5 * dev * dev) + (k > 1 ? 0.35 + 0.1 * (k - 1) : 0) + 2.5 * inside + shape(cl[i], j, k, L.medH) + c0;
+        // кусок с точкой сверху, а среди его букв нет ни одной «с точкой» — почти наверняка сдвиг
+        if (cl[i].dotAbove && !chars.slice(j, j + k).some(hasDot)) c += DOT_W;
         upd(i + 1, j + k, v + c, 1, k, c);
       }
       for (let p = 2; p <= 3 && i + p <= m; p++) {
@@ -905,5 +919,5 @@ function sxRange(px, L) {
 function recut(it, a, b, L, W) {
   const px = [];
   for (const c of linePool(it, L)) for (const p of c.px) { const x = L.shx(p); if (x >= a && x <= b) px.push(p); }
-  return px.length ? mkItem(it.char, px, it.line, it.q, it.split, W) : null;
+  return px.length ? Object.assign(mkItem(it.char, px, it.line, it.q, it.split, W), { idx: it.idx }) : null;
 }

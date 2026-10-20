@@ -116,7 +116,9 @@ document.addEventListener('keydown', ev => {
   if (ev.key === 'Escape') closeEditor();
 });
 $('#edDrop').onclick = () => {
-  const list = state.instances[ed.ch]; list.splice(ed.idx, 1);
+  const list = state.instances[ed.ch];
+  logEdit({ op: 'drop', ch: ed.ch, pos: list[ed.idx].item.idx });
+  list.splice(ed.idx, 1);
   state.choice[ed.ch] = 0; rebuild(); closeEditor();
 };
 $('#edApply').onclick = () => {
@@ -124,6 +126,8 @@ $('#edApply').onclick = () => {
   const inst = n && traceItem(n, ed.L, state.W);
   if (!inst) { $('#edSub').textContent = t('edEmpty'); return; }
   n.orig = ed.it.orig; inst.item = n;
+  logEdit({ op: 'cut', ch: ed.ch, pos: ed.it.idx, a: ed.a, b: ed.b });
+  logEdit({ op: 'choose', ch: ed.ch, pos: ed.it.idx });
   state.instances[ed.ch][ed.idx] = inst;
   state.choice[ed.ch] = ed.idx;
   rebuild(); closeEditor();

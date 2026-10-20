@@ -4,8 +4,9 @@
    с ожидаемыми символами через динамическое программирование. */
 
 const CONFIG = {
-  // Ссылка на оплату (Stripe Payment Link / Lemon Squeezy). Пусто = тестовый режим, скачивание сразу.
-  paymentLink: '',
+  // Адрес сервера оплаты (worker/). Пусто — оплаты нет, шрифт скачивается сразу (тестовый режим).
+  // На этом компьютере (localhost) server.js отвечает на /api сам: без ключей Stripe — понарошку.
+  api: ['localhost', '127.0.0.1'].includes(location.hostname) ? '/api' : '',
 };
 
 const TEMPLATES = {
@@ -35,14 +36,14 @@ const state = { script: 'latin', image: null, instances: {}, choice: {}, charset
 
 /* ---------- Шаг 1: текст-шаблон ---------- */
 const expectedEl = $('#expected');
-function setScript(s) {
+function setScript(s, focus = true) {
   if (state.script === 'own' && s !== 'own') state.ownText = expectedEl.value;   // чтобы свой текст не пропал при переключении
   state.script = s;
   document.querySelectorAll('#scriptSeg button').forEach(b => b.classList.toggle('on', b.dataset.s === s));
   if (s === 'own') {
     expectedEl.readOnly = false;
     expectedEl.value = expectedEl.dataset.own && state.ownText != null ? state.ownText : expectedEl.dataset.own ? expectedEl.value : t('ownText');
-    expectedEl.focus();
+    if (focus) expectedEl.focus();
   } else {
     expectedEl.readOnly = true;
     expectedEl.value = TEMPLATES[s].join('\n');
@@ -136,22 +137,23 @@ $('#demoGo').onclick = () => { closeDemo(); $('#upload').scrollIntoView(); fileI
 function expectedText() { return expectedEl.value; }
 
 /* Текст на листе не совпал с выбранным: буквы могли перепутаться. Говорим, что делать, и даём кнопку */
-function showMismatch(kind) {
-  const box = $('#mismatch');
+function showMismatch(kind, line) {
+  const box = $('#mismatch'), p = box.querySelector('p');
   box.classList.toggle('hidden', !kind);
+  state.mismatch = kind ? { kind, line } : null;
   if (!kind) return;
-  box.querySelector('p').dataset.i18n = kind === 'other' ? 'mmOther' : 'mmMissing';
-  box.querySelector('p').textContent = t(box.querySelector('p').dataset.i18n);
+  p.dataset.i18n = { other: 'mmOther', missing: 'mmMissing', line: 'mmLine' }[kind];
+  p.textContent = t(p.dataset.i18n, { line });
 }
 $('#mismatchBtn').onclick = () => { setScript('own'); $('#write').scrollIntoView({ behavior: 'smooth' }); };
 
 /* ---------- Обработка изображения ---------- */
 // любая неожиданная ошибка распознавания — понятное сообщение, а не вечное «Ищем буквы…»
-async function process(img, fixedText) {
-  try { await processPhoto(img, fixedText); }
+async function process(img, fixedText, restore) {
+  try { await processPhoto(img, fixedText, restore); }
   catch (e) { console.error(e); setStatus('stError', 'warn'); }
 }
-async function processPhoto(img, fixedText) {
+async function processPhoto(img, fixedText, restore) {
   state.lastImg = fixedText ? null : img;
   setStatus('stSearching');
   await new Promise(r => setTimeout(r, 30));
@@ -168,7 +170,18 @@ async function processPhoto(img, fixedText) {
   const cands = fixedText ? [{ key: state.script, text: fixedText }] : ['latin', 'cyrillic', 'both'].map(k => ({ key: k, text: TEMPLATES[k].join('\n') }));
   if (state.script === 'own' && !fixedText) cands.unshift({ key: 'own', text: expectedText() });
   for (const c of cands) c.fit = alignText(seg, c.text, W).fit;
-  const best = cands.reduce((a, b) => (b.fit.match < a.fit.match ? b : a));
+  let best = cands.reduce((a, b) => (b.fit.match < a.fit.match ? b : a));
+  // Человек мог не написать одну строку образца (чаще всего — новую строку с цифрами). Тогда сайт
+  // раздал бы её знаки чужим кускам и испортил соседние буквы. Пробуем образец без каждой строки
+  // и берём вариант без строки, только если он заметно лучше
+  if (!fixedText && best.key !== 'own') {
+    const lines = TEMPLATES[best.key];
+    for (let i = 0; i < lines.length; i++) {
+      const v = { key: best.key, text: lines.filter((_, k) => k !== i).join('\n'), dropped: lines[i] };
+      v.fit = alignText(seg, v.text, W).fit;
+      if (v.fit.match < best.fit.match - 0.15 && (!best.dropped || v.fit.match < best.fit.match)) best = v;
+    }
+  }
   let note = '', tpl = '';
   // свой текст оставляем, если он не хуже шаблонов; если на листе явно шаблон — переключаем на него
   const keep = state.script === 'own' && (best.key === 'own' || cands[0].fit.match - best.fit.match <= 0.3);
@@ -176,8 +189,9 @@ async function processPhoto(img, fixedText) {
   if (used.key !== state.script) { note = state.script === 'own' ? 'own' : 'switched'; tpl = used.key; setScript(used.key); }
   const res = alignText(seg, used.text, W);   // заново: разметка строк должна соответствовать выбранному тексту
   if (!res.items.length) return setStatus('stNoText', 'warn');
-  showMismatch(res.warn);
-  const chars = [...used.text.replace(/\s+/g, '')];
+  showMismatch(res.warn === 'other' ? 'other' : used.dropped ? 'line' : res.warn, used.dropped);
+  // знаки пропущенной строки остаются в сетке бежевыми: видно, чего в шрифте нет
+  const chars = [...(used.dropped ? TEMPLATES[used.key].join('') : used.text).replace(/\s+/g, '')];
   state.analysis = res; state.W = W;
   // чистая копия фото — для окна правки (на #scan рисуются рамки)
   state.photo = document.createElement('canvas'); state.photo.width = W; state.photo.height = H;
@@ -190,6 +204,7 @@ async function processPhoto(img, fixedText) {
     if (inst) { inst.item = it; (state.instances[it.char] ||= []).push(inst); }
   }
   for (const ch in state.instances) { rankInstances(state.instances[ch]); state.choice[ch] = 0; }
+  trackWork(img, fixedText, restore);
 
   drawItems(ctx, res.items, res.lines);
   const found = res.items.length, ratio = found / res.total;
@@ -201,6 +216,33 @@ async function processPhoto(img, fixedText) {
   rebuild();
   $('#review').classList.remove('hidden'); $('#result').classList.remove('hidden');
 }
+
+/* Работа на этом устройстве: новое фото — новая работа; тот же лист с другим текстом — правки сбрасываются
+   (буквы найдены заново); восстановление — повторяем сохранённые правки. Пример не сохраняем. */
+function trackWork(img, fixedText, restore) {
+  if (fixedText) { state.work = null; state.workImg = null; return; }
+  if (restore) { state.work = restore; state.workImg = img; applyEdits(restore.edits); return; }
+  const same = state.work && state.workImg === img;
+  state.work = { v: 1, photo: same ? state.work.photo : null, script: state.script, text: expectedText(), edits: [],
+    fontName: $('#fontName').value, purchased: same ? state.work.purchased : null, pending: null };
+  state.workImg = img;
+  if (state.work.photo) return saveWork();
+  // PNG без потерь: при восстановлении сайт видит ровно те же пиксели и находит те же буквы
+  const w = state.work;
+  state.photo.toBlob(b => { if (b && state.work === w) { w.photo = b; saveWork(); } }, 'image/png');
+}
+
+async function restoreWork(w) {
+  if (w.script === 'own') { state.ownText = w.text; expectedEl.dataset.own = 1; }
+  setScript(w.script || 'latin', false);
+  if (w.fontName) $('#fontName').value = w.fontName;
+  const img = await new Promise(ok => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = URL.createObjectURL(w.photo); });
+  if (!img) return false;
+  await process(img, null, w);
+  $('#saved').classList.remove('hidden');
+  return true;
+}
+$('#delWork').onclick = async () => { await WORK.clear(); location.replace(location.pathname); };
 
 /* ---------- Сборка шрифта ---------- */
 // Знаки, которые сайт собирает сам из уже написанных: кавычки из апострофа, тире из дефиса,
@@ -361,19 +403,78 @@ preview.addEventListener('focus', () => clearInterval(typing));
 $('.preview').addEventListener('mousedown', e => { if (e.target !== preview) { e.preventDefault(); preview.focus(); preview.setSelectionRange(preview.value.length, preview.value.length); } });
 $('#size').oninput = e => { preview.style.fontSize = e.target.value + 'px'; fitPreview(); };
 $('#track').oninput = e => { preview.style.letterSpacing = (e.target.value / 1000) + 'em'; fitPreview(); };
-$('#fontName').onchange = () => state.font && rebuild();
-$('#buyBtn').onclick = () => {
-  if (!state.font) return;
-  if (CONFIG.paymentLink) { location.href = CONFIG.paymentLink; return; }
-  state.font.download(($('#fontName').value || 'MyHandwriting').replace(/\s+/g, '') + '-Regular.otf');
-};
+$('#fontName').onchange = () => { if (state.work) { state.work.fontName = $('#fontName').value; saveWork(); } state.font && rebuild(); };
 
-// для тестов и записи роликов
-window.inkfont = { state, runDemo, setScript, process };
+/* ---------- Оплата ----------
+   Stripe Checkout: перед переходом на страницу оплаты работа уже лежит на устройстве, после возврата
+   (?paid=<id сессии>) сайт восстанавливает её, спрашивает сервер, прошла ли оплата, и отдаёт файл.
+   Покупка привязана к этой работе: скачивать можно сколько угодно раз, новое фото — новый шрифт. */
+const LOCAL = ['localhost', '127.0.0.1'].includes(location.hostname);
+function downloadFont() {
+  // проверка на этом компьютере: метка в localStorage — считаем скачивания вместо файла
+  if (LOCAL && localStorage.getItem('inkfont-test-nodl')) { state.downloads = (state.downloads || 0) + 1; return; }
+  state.font.download(($('#fontName').value || 'MyHandwriting').replace(/\s+/g, '') + '-Regular.otf');
+}
+function setBuy(kind) {
+  const paid = !!state.work?.purchased;
+  $('#buy').classList.toggle('paid', paid);
+  $('#buyBtn').dataset.i18n = !CONFIG.api ? 'buyBtn' : paid ? 'paidBtn' : 'buyPay';
+  $('#buyBtn').textContent = t($('#buyBtn').dataset.i18n);
+  $('#buyBtn').disabled = kind === 'busy';
+  const msg = { busy: 'payBusy', fail: 'payFail', check: 'payCheck', notyet: 'payNotYet' }[kind] || (paid ? 'paidNote' : '');
+  const el = $('#payMsg'); el.dataset.i18n = msg; el.textContent = msg ? t(msg) : '';
+  el.className = 'pay-msg' + (kind === 'fail' || kind === 'notyet' ? ' warn' : paid ? ' ok' : '');
+}
+$('#buyBtn').onclick = async () => {
+  if (!state.font) return;
+  if (!CONFIG.api || state.work?.purchased) return downloadFont();
+  if (!state.work) return;
+  setBuy('busy');
+  try {
+    await saveWork();
+    const r = await fetch(CONFIG.api + '/checkout', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ lang: LANG, back: location.origin + location.pathname }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.url) throw new Error(j.error || 'HTTP ' + r.status);
+    state.work.pending = j.id; await WORK.put(state.work);
+    location.href = j.url;
+  } catch (e) { console.error(e); setBuy('fail'); }
+};
+async function checkPaid(id) {
+  setBuy('check');
+  try {
+    const r = await fetch(CONFIG.api + '/verify?session_id=' + encodeURIComponent(id));
+    const j = await r.json();
+    if (!j.paid) return setBuy('notyet');
+    state.work.purchased = { id, at: Date.now() }; state.work.pending = null; await WORK.put(state.work);
+    setBuy();
+    $('#result').scrollIntoView();
+    downloadFont();
+  } catch (e) { console.error(e); setBuy('notyet'); }
+}
+
+// при открытии: вернуть работу с этого устройства; после оплаты — проверить её и отдать файл
+(async function boot() {
+  const q = new URLSearchParams(location.search), paid = q.get('paid');
+  if (paid || q.has('canceled')) history.replaceState(null, '', location.pathname);
+  setBuy();
+  const w = await WORK.get();
+  if (!w || !w.photo) return;
+  if (!(await restoreWork(w))) return;
+  setBuy();
+  const id = paid || w.pending;
+  if (id && CONFIG.api && !w.purchased) await checkPaid(id);
+})();
+
+// для тестов и записи роликов — только на этом компьютере
+if (LOCAL) window.inkfont = { state, runDemo, setScript, process };
 
 // смена языка: статус, плитки и текст-заготовка «Свой текст»
 langHooks.push(() => {
   if (state.status) setStatus(state.status.key, state.status.cls, state.status.vars);
+  const pm = $('#payMsg'); if (pm.dataset.i18n) pm.textContent = t(pm.dataset.i18n);
+  if (state.mismatch) showMismatch(state.mismatch.kind, state.mismatch.line);
+  $('#buyBtn').textContent = t($('#buyBtn').dataset.i18n);
   if (state.previewFamily) renderGrid(state.previewFamily);
   if (state.script === 'own' && !expectedEl.dataset.own) { expectedEl.value = t('ownText'); autosize(); }
 });
