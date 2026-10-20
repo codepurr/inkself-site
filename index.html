@@ -311,6 +311,19 @@
 <script src="pipeline.js"></script>
 <script src="app.js"></script>
 <script src="editor.js"></script>
-<script>applyLang();</script>
+<script>
+  applyLang();
+  // ссылки внутри страницы прокручивают плавно и не пишут #якорь в адрес —
+  // иначе при обновлении браузер сам уезжает к шагу; после загрузки страница всегда сверху
+  document.querySelectorAll('a[href^="#"]').forEach(a => a.addEventListener('click', e => {
+    const target = document.querySelector(a.getAttribute('href'));
+    if (!target) return;
+    e.preventDefault();
+    target.scrollIntoView({ behavior: 'smooth' });
+  }));
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+  window.scrollTo(0, 0);
+</script>
 </body>
 </html>
