@@ -186,8 +186,9 @@ async function processPhoto(img, fixedText, restore) {
   const ctx = cv.getContext('2d', { willReadFrequently: true });
   ctx.drawImage(img, 0, 0, W, H);
   let data = ctx.getImageData(0, 0, W, H).data;
-  // лист снят боком или под углом — выпрямляем (сверяя с образцами, чтобы не перевернуть вверх ногами)
-  if (!fixedText) {
+  // лист снят боком или под углом — выпрямляем (сверяя с образцами, чтобы не перевернуть вверх ногами).
+  // Сохранённое фото уже выпрямлено: второй поворот положил бы его набок
+  if (!fixedText && !restore) {
     const texts = ['latin', 'cyrillic'].map(k => TEMPLATES[k].join('\n'));
     if (state.script === 'own') texts.push(expectedText());
     const o = orient(data, W, H, texts);
