@@ -6,7 +6,7 @@
 const CONFIG = {
   // Адрес сервера оплаты (worker/). Пусто — оплаты нет, шрифт скачивается сразу.
   // На этом компьютере (localhost) server.js отвечает на /api сам: без ключей Stripe — понарошку.
-  api: ['localhost', '127.0.0.1'].includes(location.hostname) ? '/api' : 'https://inkfont-api.greilichjana.workers.dev',
+  api: ['localhost', '127.0.0.1'].includes(location.hostname) ? '/api' : 'https://api.janagreilich.com',
 };
 
 const TEMPLATES = {
