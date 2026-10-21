@@ -60,7 +60,8 @@ setScript('latin');
 
 /* ---------- Шаг 2: загрузка ---------- */
 const drop = $('#drop'), fileIn = $('#file');
-fileIn.onchange = () => fileIn.files[0] && loadFile(fileIn.files[0]);
+// поле очищаем: иначе повторный выбор того же файла (например, после примера) браузер не замечает
+fileIn.onchange = () => { const f = fileIn.files[0]; fileIn.value = ''; f && loadFile(f); };
 ['dragenter', 'dragover'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add('over'); }));
 ['dragleave', 'drop'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove('over'); }));
 drop.addEventListener('drop', ev => ev.dataTransfer.files[0] && loadFile(ev.dataTransfer.files[0]));
