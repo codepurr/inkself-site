@@ -959,6 +959,14 @@ function computeLineMetrics(lines, items) {
     else L.scale = XH / (0.6 * (median(L.hs) || L.medH));
     L.refPx = XH / L.scale;
   }
+  // Строка на фото редко идёт ровной прямой: почерк «плывёт», лист выгибается. Поэтому линию для каждой буквы
+  // берём местную — прямая плюс медиана отклонений низов соседних букв без выносных (не считая саму букву)
+  for (const it of items) {
+    const L = lines[it.line];
+    const near = L.pts.filter(p => p[0] !== it.cx).sort((p, q) => Math.abs(p[0] - it.cx) - Math.abs(q[0] - it.cx)).slice(0, 6);
+    const off = near.length >= 3 ? median(near.map(p => p[1] - L.baseAt(p[0]))) : 0;
+    it.base = L.baseAt(it.cx) + Math.max(-0.2, Math.min(0.2, off / L.medH)) * L.medH;
+  }
 }
 
 /* Векторизация буквы */
@@ -983,7 +991,7 @@ function traceItem(it, L, W) {
   const vals = new Float64Array(big.width * big.height);
   for (let i = 0; i < vals.length; i++) vals[i] = bd[4 * i + 3] / 255;
   const mp = d3.contours().size([big.width, big.height]).thresholds([0.5])(vals)[0];
-  const s = L.scale, base = L.baseAt(it.cx), rings = [];
+  const s = L.scale, base = it.base ?? L.baseAt(it.cx), rings = [];
   for (const poly of mp.coordinates) for (const ring of poly) {
     let pts = ring.slice(0, -1).map(([x, y]) => {
       const px = b.x0 - pad + (x - P) / k, py = b.y0 - pad + (y - P) / k;
@@ -1075,5 +1083,5 @@ function sxRange(px, L) {
 function recut(it, a, b, L, W, off) {
   const px = [];
   for (const c of linePool(it, L)) for (const p of c.px) { const x = L.shx(p); if (x >= a && x <= b && !(off && off.has(p))) px.push(p); }
-  return px.length ? Object.assign(mkItem(it.char, px, it.line, it.q, it.split, W), { idx: it.idx }) : null;
+  return px.length ? Object.assign(mkItem(it.char, px, it.line, it.q, it.split, W), { idx: it.idx, base: it.base }) : null;
 }

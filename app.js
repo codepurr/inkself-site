@@ -308,17 +308,39 @@ function buildCharset(chars) {
   });
 }
 
+// Ровная строка: буква без выносного хвоста ставится низом точно на линию, строчные вроде «a», «o», «н»
+// подгоняются к общей высоте строчных, заглавные — к высоте заглавных. На фото буквы прыгают вверх-вниз
+// и пишутся разного размера (заглавные часто едва выше строчных); в наборе это выглядит волной
+function evenRings(ch, rings) {
+  if (!/[\p{L}\d]/u.test(ch)) return rings;
+  let bot = 1e9, top = -1e9;
+  for (const r of rings) for (const [, y] of r) { if (y < bot) bot = y; if (y > top) top = y; }
+  const desc = DESC.has(ch), dy = desc ? 0 : -bot, h = top - (desc ? 0 : bot);
+  let k = 1;
+  if (X_LETTERS.has(ch)) k = Math.max(0.8, Math.min(1.25, XH / h));
+  else if (isUpper(ch) && !CAP_SKIP.has(ch)) k = Math.max(0.85, Math.min(2.2, capHeight() / h));
+  return dy || k !== 1 ? rings.map(r => r.map(([x, y]) => [x * k, (y + dy) * k])) : rings;
+}
+// высота заглавных — чуть ниже палочек «b», «d», «h», «k», «l» этого же почерка (как в наборных шрифтах), но не ниже CH
+function capHeight() {
+  const tops = [];
+  for (const c of 'bdhklбф') {
+    const o = state.instances[c]; if (!o) continue;
+    tops.push(Math.max(...o[state.choice[c] % o.length].rings.flat().map(p => p[1])));
+  }
+  return tops.length ? Math.max(CH, Math.min(1100, 0.92 * median(tops))) : CH;
+}
+const pick = c => { const o = state.instances[c]; return evenRings(c, o[state.choice[c] % o.length].rings); };
+
 // Источник глифа: свой экземпляр, иначе пара по регистру с масштабом (решение проблемы заглавных)
 function glyphSource(ch) {
   const own = state.instances[ch];
-  if (own) return { rings: own[state.choice[ch] % own.length].rings, sc: 1, auto: false, count: own.length, from: ch };
+  if (own) return { rings: pick(ch), sc: 1, auto: false, count: own.length, from: ch };
   if (isUpper(ch) && state.instances[ch.toLowerCase()]) {
-    const o = state.instances[ch.toLowerCase()];
-    return { rings: o[state.choice[ch.toLowerCase()] % o.length].rings, sc: CH / XH * 0.92, auto: true, from: ch.toLowerCase() };
+    return { rings: pick(ch.toLowerCase()), sc: CH / XH * 0.92, auto: true, from: ch.toLowerCase() };
   }
   if (isLower(ch) && state.instances[ch.toUpperCase()]) {
-    const o = state.instances[ch.toUpperCase()];
-    return { rings: o[state.choice[ch.toUpperCase()] % o.length].rings, sc: XH / CH, auto: true, from: ch.toUpperCase() };
+    return { rings: pick(ch.toUpperCase()), sc: XH / CH, auto: true, from: ch.toUpperCase() };
   }
   if (DERIVED[ch]) return derivedSource(ch);
   return null;
@@ -364,7 +386,7 @@ function makeGlyph(ch, src) {
   const pts = src.rings.flat().map(([x, y]) => [x * src.sc, y * src.sc]);
   // края и центр буквы считаем по её «телу» — от линии строки до высоты строчных (у заглавных — до их высоты).
   // Хвосты и крючки (y, g, j, f) могут заходить под соседей, как в настоящем почерке, и не раздвигают строку.
-  const [minX, maxX] = bodyRange(src.rings, src.sc, isUpper(ch) ? CH : XH) || [Math.min(...pts.map(p => p[0])), Math.max(...pts.map(p => p[0]))];
+  const [minX, maxX] = bodyRange(src.rings, src.sc, isUpper(ch) ? capHeight() : XH) || [Math.min(...pts.map(p => p[0])), Math.max(...pts.map(p => p[0]))];
   const sb = PUNCT.has(ch) ? 34 : 46, dx = sb - minX;
   const path = new opentype.Path();
   for (const r of src.rings) {
