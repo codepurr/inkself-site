@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- всё грузится только с самого сайта; фото и шрифт никуда не отправляются -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; connect-src 'self' https://api.janagreilich.com; object-src 'none'; base-uri 'self'; form-action 'none'">
 <title>inkfont — твой почерк как шрифт</title>
 <meta name="description" content="Напиши три строчки от руки, сфотографируй — получи готовый шрифт .otf за минуту.">
 <link rel="preload" href="fonts/GeneralSans-Regular.woff2" as="font" type="font/woff2" crossorigin>
@@ -80,7 +80,7 @@
   .btn[disabled]{opacity:.35;cursor:default}
 
   /* шаги */
-  section.step{padding:128px 0 0}
+  section.step{padding:128px 0 0;scroll-margin-top:-112px}
   section.step:last-of-type{padding-bottom:128px}
   /* номер шага — огромная светлая цифра в углу блока, за содержимым */
   section.step .wrap{position:relative}
@@ -194,7 +194,7 @@
   @media (max-width:600px){
     nav{padding:20px} .nav-r{gap:12px} nav a.go{padding:10px 16px}
     h1{font-size:min(14vw,8.5svh)}
-    section.step{padding-top:88px} section.step:last-of-type{padding-bottom:88px}
+    section.step{padding-top:88px;scroll-margin-top:-72px} section.step:last-of-type{padding-bottom:88px}
     #previewText{font-size:40px} .card,.preview,.buy{padding:20px} .sheet{padding:18px 20px}
     .modal{align-items:flex-end;padding:0} .ed-card{border-radius:22px 22px 0 0;max-height:92vh;padding:20px 16px}
   }
@@ -325,11 +325,11 @@
 <!-- библиотеки лежат на сайте (не на чужом CDN) и грузятся после показа страницы -->
 <script src="vendor/d3.min.js" defer></script>
 <script src="vendor/opentype.min.js" defer></script>
-<script src="i18n.js?v=1792587734"></script>
-<script src="pipeline.js?v=1792587734"></script>
-<script src="store.js?v=1792587734"></script>
-<script src="app.js?v=1792587734"></script>
-<script src="editor.js?v=1792587734"></script>
+<script src="i18n.js?v=1792758430"></script>
+<script src="pipeline.js?v=1792758430"></script>
+<script src="store.js?v=1792758430"></script>
+<script src="app.js?v=1792758430"></script>
+<script src="editor.js?v=1792758430"></script>
 <script>
   applyLang();
   // ссылки внутри страницы прокручивают плавно и не пишут #якорь в адрес —
