@@ -276,36 +276,49 @@ function textBlock(comps, medH) {
   // если в ней 2+ пятна высотой с букву, стоящие в одну линию под/над блоком; одиночные рисунки отпадают
   const box = { x0: 1e9, x1: -1, y0: 1e9, y1: -1 };
   comps.forEach((c, i) => { if (keep.has(find(i))) { box.x0 = Math.min(box.x0, c.x0); box.x1 = Math.max(box.x1, c.x1); box.y0 = Math.min(box.y0, c.y0); box.y1 = Math.max(box.y1, c.y1); } });
-  const groups = new Map();
-  comps.forEach((c, i) => { const r = find(i); if (!keep.has(r)) (groups.get(r) || groups.set(r, []).get(r)).push(c); });
-  for (const [r, g] of groups) {
-    const big = g.filter(c => c.h >= 0.4 * medH);
-    if (big.length < 2) continue;
-    const mh = median(big.map(c => c.h)), y0 = Math.min(...g.map(c => c.y0)), y1 = Math.max(...g.map(c => c.y1));
-    const x0 = Math.min(...g.map(c => c.x0)), x1 = Math.max(...g.map(c => c.x1));
+  // ряды: пятна на одной высоте с поправкой на наклон строки (до ~15%) и без огромных промежутков
+  const rowsOf = ids => {
+    ids = [...ids].sort((a, b) => comps[a].cx - comps[b].cx);
+    const rp = new Map(ids.map(i => [i, i]));
+    const rf = i => { while (rp.get(i) !== i) i = rp.get(i); return i; };
+    for (let a = 0; a < ids.length; a++) for (let b = a + 1; b < ids.length; b++) {
+      const A = comps[ids[a]], B = comps[ids[b]];
+      if (B.x0 - A.x1 > 3.5 * medH) break;
+      if (Math.abs(B.cy - A.cy) <= 0.6 * medH + 0.15 * Math.abs(B.cx - A.cx)) rp.set(rf(ids[a]), rf(ids[b]));
+    }
+    const rows = new Map();
+    for (const i of ids) (rows.get(rf(i)) || rows.set(rf(i), []).get(rf(i))).push(i);
+    return [...rows.values()];
+  };
+  const extra = new Set(), groups = new Map();
+  comps.forEach((c, i) => { const r = find(i); if (!keep.has(r)) (groups.get(r) || groups.set(r, []).get(r)).push(i); });
+  const shortLine = (big, all) => {
+    const mh = median(big.map(i => comps[i].h)), y0 = Math.min(...all.map(i => comps[i].y0)), y1 = Math.max(...all.map(i => comps[i].y1));
+    const x0 = Math.min(...all.map(i => comps[i].x0)), x1 = Math.max(...all.map(i => comps[i].x1));
     const dy = Math.max(0, box.y0 - y1, y0 - box.y1);
-    if (mh > 0.5 * medH && mh < 1.8 * medH && y1 - y0 < 2.2 * medH && dy < 4 * medH && x1 > box.x0 && x0 < box.x1) keep.add(r);
+    return mh > 0.5 * medH && mh < 1.8 * medH && y1 - y0 < 2.2 * medH && dy < 4 * medH && x1 > box.x0 && x0 < box.x1;
+  };
+  for (const [r, g] of groups) {
+    const big = g.filter(i => comps[i].h >= 0.4 * medH);
+    if (big.length < 2) continue;
+    if (shortLine(big, g)) { keep.add(r); continue; }
+    // группа сцепила две строки («JUMPS» над «DOG») и вышла выше строки — проверяем каждый ряд отдельно
+    for (const row of rowsOf(big)) {
+      if (row.length < 2 || !shortLine(row, row)) continue;
+      row.forEach(i => extra.add(i));
+      const y0 = Math.min(...row.map(i => comps[i].y0)) - medH, y1 = Math.max(...row.map(i => comps[i].y1)) + 0.5 * medH;
+      g.forEach(i => { const c = comps[i]; if (c.h < 0.4 * medH && c.cy > y0 && c.cy < y1) extra.add(i); });
+    }
   }
   // Строка из отдельных значков с большими промежутками («0 1 2 3 4 5 6 7 8 9»): каждый значок — своя группа,
   // и правила выше её теряют. Ищем ряды из 4+ пятен высотой с букву рядом с основным блоком
-  const extra = new Set(), cand = [];
+  const cand = [];
   comps.forEach((c, i) => {
     if (keep.has(find(i)) || c.h < 0.45 * medH || c.h > 2 * medH || c.w > 2.5 * medH) return;
     const dy = Math.max(0, box.y0 - c.y1, c.y0 - box.y1);
     if (dy < 5 * medH && c.x1 > box.x0 - 2 * medH && c.x0 < box.x1 + 2 * medH) cand.push(i);
   });
-  cand.sort((a, b) => comps[a].cx - comps[b].cx);
-  const rp = new Map(cand.map(i => [i, i]));
-  const rf = i => { while (rp.get(i) !== i) i = rp.get(i); return i; };
-  for (let a = 0; a < cand.length; a++) for (let b = a + 1; b < cand.length; b++) {
-    const A = comps[cand[a]], B = comps[cand[b]], gap = B.x0 - A.x1;
-    if (gap > 3.5 * medH) break;
-    // в ряду: на одной высоте с поправкой на наклон строки (до ~15%)
-    if (Math.abs(B.cy - A.cy) <= 0.6 * medH + 0.15 * Math.abs(B.cx - A.cx)) rp.set(rf(cand[a]), rf(cand[b]));
-  }
-  const rows = new Map();
-  for (const i of cand) (rows.get(rf(i)) || rows.set(rf(i), []).get(rf(i))).push(i);
-  for (const row of rows.values()) {
+  for (const row of rowsOf(cand)) {
     if (row.length < 4) continue;
     const mh = median(row.map(i => comps[i].h));
     if (mh < 0.5 * medH || mh > 1.6 * medH) continue;
